@@ -35,7 +35,7 @@ uv sync
 
 ### 运行示例
 ```bash
-uv run python -m tmo.example
+uv run python examples/exchange_demo.py
 ```
 
 ### 运行测试
@@ -55,8 +55,10 @@ TradeMasterOnline/
 ├── tmo/                    # 主要代码目录
 │   ├── __init__.py        # 包初始化
 │   ├── models.py          # 数据模型
-│   ├── exchange.py        # 交易所核心逻辑
-│   └── example.py         # 使用示例
+│   └── exchange.py        # 交易所核心逻辑
+├── examples/              # 示例代码目录
+│   ├── __init__.py
+│   └── exchange_demo.py   # 交易所演示示例
 ├── tests/                 # 测试目录
 │   ├── __init__.py
 │   ├── test_models.py     # 数据模型测试

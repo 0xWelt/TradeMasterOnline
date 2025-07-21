@@ -2,8 +2,8 @@
 
 from loguru import logger
 
-from .exchange import Exchange
-from .models import AssetType, OrderType
+from tmo.exchange import Exchange
+from tmo.models import AssetType, OrderType
 
 
 def run_exchange_demo():
