@@ -12,6 +12,11 @@ from tmo.exchange import Exchange
 from tmo.typing import AssetType, OrderType, Trade
 
 
+# 配置 loguru 只显示 INFO 及以上级别的日志
+logger.remove()
+logger.add(lambda msg: print(msg, end=''), level='INFO')
+
+
 class ExchangeVisualizer:
     """交易所可视化器"""
 

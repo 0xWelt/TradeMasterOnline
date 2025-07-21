@@ -56,7 +56,7 @@ class Exchange:
             price=price,
         )
 
-        logger.info(
+        logger.debug(
             f'用户 {user_id} 下 {order_type.value} 单: {quantity} {asset.value} @ ${price:,.2f}'
         )
 
@@ -155,7 +155,7 @@ class Exchange:
             price=trade_price,
         )
 
-        logger.info(f'成交: {trade_quantity} {buy_order.asset.value} @ ${trade_price:,.2f}')
+        logger.debug(f'成交: {trade_quantity} {buy_order.asset.value} @ ${trade_price:,.2f}')
 
         return trade
 
@@ -174,7 +174,7 @@ class Exchange:
             self.trading_pairs[pair_symbol].last_update = datetime.now()
 
             if old_price != price:
-                logger.info(f'{pair_symbol} 价格更新: ${old_price:,.2f} -> ${price:,.2f}')
+                logger.debug(f'{pair_symbol} 价格更新: ${old_price:,.2f} -> ${price:,.2f}')
 
     def _cleanup_filled_orders(self, pair_symbol: str) -> None:
         """清理已完成的订单"""
@@ -208,7 +208,7 @@ class Exchange:
         """取消订单"""
         order = self.orders.get(order_id)
         if not order or order.is_filled:
-            logger.warning(f'无法取消订单 {order_id}: 订单不存在或已成交')
+            logger.debug(f'无法取消订单 {order_id}: 订单不存在或已成交')
             return False
 
         # 从订单簿中移除
@@ -221,7 +221,7 @@ class Exchange:
         # 更新订单状态
         order.status = 'cancelled'
 
-        logger.info(
+        logger.debug(
             f'用户 {order.user_id} 取消订单: {order.quantity} {order.asset.value} @ ${order.price:,.2f}'
         )
 
