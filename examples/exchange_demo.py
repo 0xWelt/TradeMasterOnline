@@ -9,7 +9,7 @@ from loguru import logger
 from plotly.subplots import make_subplots
 
 from tmo.exchange import Exchange
-from tmo.typing import AssetType, OrderType, Trade
+from tmo.typing import AssetType, OrderType
 
 
 # 配置 loguru 只显示 INFO 及以上级别的日志
@@ -22,43 +22,60 @@ class ExchangeVisualizer:
 
     def __init__(self):
         """初始化可视化器"""
-        self.price_history: list[dict[str, Any]] = []
-        self.order_history: list[dict[str, Any]] = []
-        self.trade_history: list[dict[str, Any]] = []
+        self.timeline_data: list[dict[str, Any]] = []
+        self.current_step = 0
 
-    def record_price(self, timestamp: datetime, price: float, trading_pair: str):
-        """记录价格变化"""
-        self.price_history.append(
-            {'timestamp': timestamp, 'price': price, 'trading_pair': trading_pair}
-        )
+    def record_snapshot(self, exchange: Exchange, step_name: str, description: str = ''):
+        """记录当前时刻的交易所快照"""
+        # 获取当前状态
+        btc_pair = exchange.get_trading_pair(AssetType.BTC)
+        order_book = exchange.get_order_book(AssetType.BTC)
+        recent_trades = exchange.get_recent_trades(AssetType.BTC, limit=5)
 
-    def record_order(self, order: Any, action: str = 'placed'):
-        """记录订单"""
-        self.order_history.append(
-            {
-                'timestamp': order.timestamp,
-                'order_id': order.id,
-                'user_id': order.user_id,
-                'order_type': order.order_type.value,
-                'quantity': order.quantity,
-                'price': order.price,
-                'action': action,
-                'status': order.status,
-            }
-        )
+        # 构建快照数据
+        snapshot = {
+            'timestamp': datetime.now(),
+            'step': self.current_step,
+            'step_name': step_name,
+            'description': description,
+            'price': btc_pair.current_price if btc_pair else 0,
+            'buy_orders': [],
+            'sell_orders': [],
+            'recent_trades': [],
+            'total_orders': len(exchange.orders),
+            'total_trades': len(exchange.trades),
+        }
 
-    def record_trade(self, trade: Trade):
-        """记录成交"""
-        self.trade_history.append(
-            {
-                'timestamp': trade.timestamp,
-                'trade_id': trade.id,
-                'quantity': trade.quantity,
-                'price': trade.price,
-                'buy_order_id': trade.buy_order_id,
-                'sell_order_id': trade.sell_order_id,
-            }
-        )
+        # 记录订单簿状态
+        if order_book:
+            for order in order_book[OrderType.BUY][:5]:  # 前5个买单
+                snapshot['buy_orders'].append(
+                    {
+                        'price': order.price,
+                        'quantity': order.remaining_quantity,
+                        'user_id': order.user_id,
+                        'status': order.status,
+                    }
+                )
+
+            for order in order_book[OrderType.SELL][:5]:  # 前5个卖单
+                snapshot['sell_orders'].append(
+                    {
+                        'price': order.price,
+                        'quantity': order.remaining_quantity,
+                        'user_id': order.user_id,
+                        'status': order.status,
+                    }
+                )
+
+        # 记录最近成交
+        for trade in recent_trades:
+            snapshot['recent_trades'].append(
+                {'price': trade.price, 'quantity': trade.quantity, 'timestamp': trade.timestamp}
+            )
+
+        self.timeline_data.append(snapshot)
+        self.current_step += 1
 
     def create_visualization(
         self, exchange: Exchange, output_file: str = 'examples/exchange_demo.html'
@@ -71,12 +88,12 @@ class ExchangeVisualizer:
             rows=3,
             cols=2,
             subplot_titles=(
-                '价格变化趋势',
+                '价格变化时间轴',
                 '订单簿深度',
                 '成交量分布',
                 '订单状态统计',
                 '用户交易活跃度',
-                '价格波动分析',
+                '时间轴控制',
             ),
             specs=[
                 [{'secondary_y': False}, {'secondary_y': False}],
@@ -87,30 +104,32 @@ class ExchangeVisualizer:
             horizontal_spacing=0.1,
         )
 
-        # 1. 价格变化趋势
-        if self.price_history:
-            df_price = pd.DataFrame(self.price_history)
+        # 1. 价格变化时间轴
+        if self.timeline_data:
+            df_timeline = pd.DataFrame(self.timeline_data)
             fig.add_trace(
                 go.Scatter(
-                    x=df_price['timestamp'],
-                    y=df_price['price'],
+                    x=df_timeline['step'],
+                    y=df_timeline['price'],
                     mode='lines+markers',
                     name='BTC/USDT 价格',
-                    line={'color': '#1f77b4', 'width': 2},
-                    marker={'size': 6},
+                    line={'color': '#1f77b4', 'width': 3},
+                    marker={'size': 8, 'color': '#1f77b4'},
+                    hovertemplate='<b>%{text}</b><br>价格: $%{y:,.2f}<br>步骤: %{x}<extra></extra>',
+                    text=df_timeline['step_name'],
                 ),
                 row=1,
                 col=1,
             )
 
-        # 2. 订单簿深度
-        order_book = exchange.get_order_book(AssetType.BTC)
-        if order_book:
+        # 2. 订单簿深度（显示最新状态）
+        if self.timeline_data:
+            latest_snapshot = self.timeline_data[-1]
+
             # 买单
-            buy_orders = order_book[OrderType.BUY]
-            if buy_orders:
-                buy_prices = [order.price for order in buy_orders]
-                buy_quantities = [order.remaining_quantity for order in buy_orders]
+            if latest_snapshot['buy_orders']:
+                buy_prices = [order['price'] for order in latest_snapshot['buy_orders']]
+                buy_quantities = [order['quantity'] for order in latest_snapshot['buy_orders']]
                 fig.add_trace(
                     go.Bar(
                         x=buy_prices,
@@ -118,16 +137,16 @@ class ExchangeVisualizer:
                         name='买单',
                         marker_color='rgba(0, 255, 0, 0.6)',
                         orientation='h',
+                        hovertemplate='价格: $%{x:,.2f}<br>数量: %{y} BTC<extra></extra>',
                     ),
                     row=1,
                     col=2,
                 )
 
             # 卖单
-            sell_orders = order_book[OrderType.SELL]
-            if sell_orders:
-                sell_prices = [order.price for order in sell_orders]
-                sell_quantities = [order.remaining_quantity for order in sell_orders]
+            if latest_snapshot['sell_orders']:
+                sell_prices = [order['price'] for order in latest_snapshot['sell_orders']]
+                sell_quantities = [order['quantity'] for order in latest_snapshot['sell_orders']]
                 fig.add_trace(
                     go.Bar(
                         x=sell_prices,
@@ -135,76 +154,99 @@ class ExchangeVisualizer:
                         name='卖单',
                         marker_color='rgba(255, 0, 0, 0.6)',
                         orientation='h',
+                        hovertemplate='价格: $%{x:,.2f}<br>数量: %{y} BTC<extra></extra>',
                     ),
                     row=1,
                     col=2,
                 )
 
         # 3. 成交量分布
-        if self.trade_history:
-            df_trades = pd.DataFrame(self.trade_history)
-            fig.add_trace(
-                go.Histogram(
-                    x=df_trades['price'],
-                    nbinsx=10,
-                    name='成交量分布',
-                    marker_color='rgba(100, 149, 237, 0.7)',
-                ),
-                row=2,
-                col=1,
-            )
+        if self.timeline_data:
+            all_trades = []
+            for snapshot in self.timeline_data:
+                all_trades.extend(snapshot['recent_trades'])
+
+            if all_trades:
+                df_trades = pd.DataFrame(all_trades)
+                fig.add_trace(
+                    go.Histogram(
+                        x=df_trades['price'],
+                        nbinsx=10,
+                        name='成交量分布',
+                        marker_color='rgba(100, 149, 237, 0.7)',
+                        hovertemplate='价格区间: $%{x}<br>成交量: %{y}<extra></extra>',
+                    ),
+                    row=2,
+                    col=1,
+                )
 
         # 4. 订单状态统计
-        if self.order_history:
-            df_orders = pd.DataFrame(self.order_history)
-            status_counts = df_orders['status'].value_counts()
-            fig.add_trace(
-                go.Pie(
-                    labels=status_counts.index,
-                    values=status_counts.values,
-                    name='订单状态',
-                    hole=0.3,
-                ),
-                row=2,
-                col=2,
-            )
+        if self.timeline_data:
+            latest_snapshot = self.timeline_data[-1]
+            status_counts = {}
 
-        # 5. 用户交易活跃度
-        if self.order_history:
-            user_activity = df_orders['user_id'].value_counts()
-            fig.add_trace(
-                go.Bar(
-                    x=user_activity.index,
-                    y=user_activity.values,
-                    name='用户活跃度',
-                    marker_color='rgba(255, 165, 0, 0.7)',
-                ),
-                row=3,
-                col=1,
-            )
+            # 统计所有订单状态
+            for order in latest_snapshot['buy_orders'] + latest_snapshot['sell_orders']:
+                status = order['status']
+                status_counts[status] = status_counts.get(status, 0) + 1
 
-        # 6. 价格波动分析
-        if self.price_history:
-            df_price = pd.DataFrame(self.price_history)
-            if len(df_price) > 1:
-                df_price['price_change'] = df_price['price'].diff()
+            if status_counts:
                 fig.add_trace(
-                    go.Scatter(
-                        x=df_price['timestamp'],
-                        y=df_price['price_change'],
-                        mode='lines+markers',
-                        name='价格变化',
-                        line={'color': '#ff7f0e', 'width': 2},
-                        marker={'size': 4},
+                    go.Pie(
+                        labels=list(status_counts.keys()),
+                        values=list(status_counts.values()),
+                        name='订单状态',
+                        hole=0.3,
+                        hovertemplate='状态: %{label}<br>数量: %{value}<extra></extra>',
                     ),
-                    row=3,
+                    row=2,
                     col=2,
                 )
+
+        # 5. 用户交易活跃度
+        if self.timeline_data:
+            user_activity = {}
+            for snapshot in self.timeline_data:
+                for order in snapshot['buy_orders'] + snapshot['sell_orders']:
+                    user_id = order['user_id']
+                    user_activity[user_id] = user_activity.get(user_id, 0) + 1
+
+            if user_activity:
+                fig.add_trace(
+                    go.Bar(
+                        x=list(user_activity.keys()),
+                        y=list(user_activity.values()),
+                        name='用户活跃度',
+                        marker_color='rgba(255, 165, 0, 0.7)',
+                        hovertemplate='用户: %{x}<br>订单数: %{y}<extra></extra>',
+                    ),
+                    row=3,
+                    col=1,
+                )
+
+        # 6. 时间轴控制（步骤说明）
+        if self.timeline_data:
+            df_timeline = pd.DataFrame(self.timeline_data)
+            fig.add_trace(
+                go.Scatter(
+                    x=df_timeline['step'],
+                    y=[1] * len(df_timeline),  # 固定Y值用于显示
+                    mode='markers+text',
+                    name='时间轴步骤',
+                    marker={'size': 12, 'color': '#ff7f0e'},
+                    text=df_timeline['step_name'],
+                    textposition='top center',
+                    hovertemplate='<b>%{text}</b><br>步骤: %{x}<br>价格: $%{customdata:,.2f}<extra></extra>',
+                    customdata=df_timeline['price'],
+                ),
+                row=3,
+                col=2,
+            )
 
         # 更新布局
         fig.update_layout(
             title={
-                'text': 'TradeMasterOnline 交易所演示 - 交互式可视化',
+                'text': 'TradeMasterOnline 交易所演示 - 交互式时间轴可视化',
                 'x': 0.5,
                 'xanchor': 'center',
                 'font': {'size': 20},
@@ -212,10 +254,37 @@ class ExchangeVisualizer:
             height=1200,
             showlegend=True,
             template='plotly_white',
+            # 添加时间轴滑块
+            sliders=[
+                {
+                    'active': len(self.timeline_data) - 1 if self.timeline_data else 0,
+                    'currentvalue': {'prefix': '步骤: ', 'visible': True, 'xanchor': 'right'},
+                    'len': 0.9,
+                    'x': 0.1,
+                    'xanchor': 'left',
+                    'y': 0,
+                    'yanchor': 'top',
+                    'steps': [
+                        {
+                            'args': [
+                                [i],
+                                {
+                                    'frame': {'duration': 300, 'redraw': True},
+                                    'mode': 'immediate',
+                                    'transition': {'duration': 300},
+                                },
+                            ],
+                            'label': f'步骤 {i + 1}',
+                            'method': 'animate',
+                        }
+                        for i in range(len(self.timeline_data))
+                    ],
+                }
+            ],
         )
 
         # 更新坐标轴标签
-        fig.update_xaxes(title_text='时间', row=1, col=1)
+        fig.update_xaxes(title_text='时间步骤', row=1, col=1)
         fig.update_yaxes(title_text='价格 (USDT)', row=1, col=1)
         fig.update_xaxes(title_text='价格 (USDT)', row=1, col=2)
         fig.update_yaxes(title_text='数量 (BTC)', row=1, col=2)
@@ -223,8 +292,8 @@ class ExchangeVisualizer:
         fig.update_yaxes(title_text='成交量', row=2, col=1)
         fig.update_xaxes(title_text='用户ID', row=3, col=1)
         fig.update_yaxes(title_text='订单数量', row=3, col=1)
-        fig.update_xaxes(title_text='时间', row=3, col=2)
-        fig.update_yaxes(title_text='价格变化 (USDT)', row=3, col=2)
+        fig.update_xaxes(title_text='时间步骤', row=3, col=2)
+        fig.update_yaxes(title_text='', row=3, col=2, showticklabels=False)
 
         # 保存图表
         fig.write_html(output_file)
@@ -241,12 +310,12 @@ def run_exchange_demo():
     exchange = Exchange()
     visualizer = ExchangeVisualizer()
 
-    # 记录初始价格
-    btc_pair = exchange.get_trading_pair(AssetType.BTC)
-    visualizer.record_price(datetime.now(), btc_pair.current_price, 'BTC/USDT')
+    # 记录初始状态
+    visualizer.record_snapshot(exchange, '初始状态', '交易所初始化完成')
 
     # 显示初始状态
     logger.info('1. 初始状态:')
+    btc_pair = exchange.get_trading_pair(AssetType.BTC)
     logger.info(f'   BTC/USDT 当前价格: ${btc_pair.current_price:,.2f}')
 
     # 用户1下买单
@@ -254,7 +323,11 @@ def run_exchange_demo():
     buy_order1 = exchange.place_order(
         user_id='user1', order_type=OrderType.BUY, asset=AssetType.BTC, quantity=1.0, price=50000.0
     )
-    visualizer.record_order(buy_order1)
+    visualizer.record_snapshot(
+        exchange,
+        '用户1下买单',
+        f'用户1下买单: {buy_order1.quantity} BTC @ ${buy_order1.price:,.2f}',
+    )
     logger.info(f'   买单ID: {buy_order1.id}')
     logger.info(f'   数量: {buy_order1.quantity} BTC')
     logger.info(f'   价格: ${buy_order1.price:,.2f}')
@@ -264,25 +337,29 @@ def run_exchange_demo():
     sell_order1 = exchange.place_order(
         user_id='user2', order_type=OrderType.SELL, asset=AssetType.BTC, quantity=0.5, price=50000.0
     )
-    visualizer.record_order(sell_order1)
+    visualizer.record_snapshot(
+        exchange,
+        '用户2下卖单',
+        f'用户2下卖单: {sell_order1.quantity} BTC @ ${sell_order1.price:,.2f}',
+    )
     logger.info(f'   卖单ID: {sell_order1.id}')
     logger.info(f'   数量: {sell_order1.quantity} BTC')
     logger.info(f'   价格: ${sell_order1.price:,.2f}')
 
-    # 记录成交
+    # 记录成交后状态
     recent_trades = exchange.get_recent_trades(AssetType.BTC)
     if recent_trades:
         latest_trade = recent_trades[-1]
-        visualizer.record_trade(latest_trade)
+        visualizer.record_snapshot(
+            exchange,
+            '成交后状态',
+            f'成交: {latest_trade.quantity} BTC @ ${latest_trade.price:,.2f}',
+        )
         logger.info('4. 成交情况:')
         logger.info(f'   成交ID: {latest_trade.id}')
         logger.info(f'   数量: {latest_trade.quantity} BTC')
         logger.info(f'   价格: ${latest_trade.price:,.2f}')
         logger.info(f'   时间: {latest_trade.timestamp}')
-
-    # 记录价格变化
-    btc_pair = exchange.get_trading_pair(AssetType.BTC)
-    visualizer.record_price(datetime.now(), btc_pair.current_price, 'BTC/USDT')
 
     # 显示订单状态
     logger.info('5. 订单状态:')
@@ -299,6 +376,7 @@ def run_exchange_demo():
 
     # 显示更新后的价格
     logger.info('6. 更新后的价格:')
+    btc_pair = exchange.get_trading_pair(AssetType.BTC)
     logger.info(f'   BTC/USDT 当前价格: ${btc_pair.current_price:,.2f}')
 
     # 显示订单簿
@@ -318,7 +396,11 @@ def run_exchange_demo():
     buy_order2 = exchange.place_order(
         user_id='user3', order_type=OrderType.BUY, asset=AssetType.BTC, quantity=0.3, price=50100.0
     )
-    visualizer.record_order(buy_order2)
+    visualizer.record_snapshot(
+        exchange,
+        '用户3下买单',
+        f'用户3下买单: {buy_order2.quantity} BTC @ ${buy_order2.price:,.2f}',
+    )
     logger.info(f'   买单ID: {buy_order2.id}')
     logger.info(f'   数量: {buy_order2.quantity} BTC')
     logger.info(f'   价格: ${buy_order2.price:,.2f}')
@@ -328,37 +410,49 @@ def run_exchange_demo():
     sell_order2 = exchange.place_order(
         user_id='user4', order_type=OrderType.SELL, asset=AssetType.BTC, quantity=0.3, price=50100.0
     )
-    visualizer.record_order(sell_order2)
+    visualizer.record_snapshot(
+        exchange,
+        '用户4下卖单',
+        f'用户4下卖单: {sell_order2.quantity} BTC @ ${sell_order2.price:,.2f}',
+    )
     logger.info(f'   卖单ID: {sell_order2.id}')
     logger.info(f'   数量: {sell_order2.quantity} BTC')
     logger.info(f'   价格: ${sell_order2.price:,.2f}')
 
-    # 记录新的成交
+    # 记录新的成交后状态
     recent_trades = exchange.get_recent_trades(AssetType.BTC)
     if len(recent_trades) > 1:
         latest_trade = recent_trades[-1]
-        visualizer.record_trade(latest_trade)
+        visualizer.record_snapshot(
+            exchange,
+            '第二次成交',
+            f'成交: {latest_trade.quantity} BTC @ ${latest_trade.price:,.2f}',
+        )
         logger.info('10. 新的成交:')
         logger.info(f'    成交ID: {latest_trade.id}')
         logger.info(f'    数量: {latest_trade.quantity} BTC')
         logger.info(f'    价格: ${latest_trade.price:,.2f}')
-
-    # 记录最终价格
-    btc_pair = exchange.get_trading_pair(AssetType.BTC)
-    visualizer.record_price(datetime.now(), btc_pair.current_price, 'BTC/USDT')
 
     # 用户5取消订单
     logger.info('11. 用户5下买单然后取消:')
     buy_order3 = exchange.place_order(
         user_id='user5', order_type=OrderType.BUY, asset=AssetType.BTC, quantity=0.2, price=50200.0
     )
-    visualizer.record_order(buy_order3)
+    visualizer.record_snapshot(
+        exchange,
+        '用户5下买单',
+        f'用户5下买单: {buy_order3.quantity} BTC @ ${buy_order3.price:,.2f}',
+    )
     logger.info(f'   买单ID: {buy_order3.id}')
 
     # 取消订单
     exchange.cancel_order(buy_order3.id)
     buy_order3 = exchange.get_order(buy_order3.id)
-    visualizer.record_order(buy_order3, 'cancelled')
+    visualizer.record_snapshot(
+        exchange,
+        '用户5取消订单',
+        f'用户5取消订单: {buy_order3.quantity} BTC @ ${buy_order3.price:,.2f}',
+    )
     logger.info(f'   订单已取消，状态: {buy_order3.status}')
 
     logger.info('=== 演示完成 ===')
