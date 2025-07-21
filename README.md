@@ -54,14 +54,14 @@ uv run pre-commit run --all-files
 TradeMasterOnline/
 ├── tmo/                    # 主要代码目录
 │   ├── __init__.py        # 包初始化
-│   ├── models.py          # 数据模型
+│   ├── typing.py          # 类型定义和数据模型
 │   └── exchange.py        # 交易所核心逻辑
 ├── examples/              # 示例代码目录
 │   ├── __init__.py
 │   └── exchange_demo.py   # 交易所演示示例
 ├── tests/                 # 测试目录
 │   ├── __init__.py
-│   ├── test_models.py     # 数据模型测试
+│   ├── test_typing.py     # 类型定义测试
 │   └── test_exchange.py   # 交易所测试
 ├── docs/                  # 文档目录
 ├── pyproject.toml         # 项目配置
@@ -70,7 +70,7 @@ TradeMasterOnline/
 
 ## 核心组件
 
-### 数据模型 (`tmo.models`)
+### 类型定义 (`tmo.typing`)
 - `AssetType`：资产类型枚举
 - `OrderType`：订单类型枚举
 - `Asset`：资产模型
@@ -89,7 +89,7 @@ TradeMasterOnline/
 
 ```python
 from tmo.exchange import Exchange
-from tmo.models import AssetType, OrderType
+from tmo.typing import AssetType, OrderType
 
 # 创建交易所实例
 exchange = Exchange()

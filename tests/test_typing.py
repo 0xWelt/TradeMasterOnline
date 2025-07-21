@@ -1,6 +1,6 @@
 """测试数据模型"""
 
-from tmo.models import Asset, AssetType, Order, OrderType, Trade, TradingPair
+from tmo.typing import Asset, AssetType, Order, OrderType, Trade, TradingPair
 
 
 class TestAssetType:

@@ -3,7 +3,7 @@
 from loguru import logger
 
 from tmo.exchange import Exchange
-from tmo.models import AssetType, OrderType
+from tmo.typing import AssetType, OrderType
 
 
 def run_exchange_demo():

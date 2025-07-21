@@ -5,7 +5,7 @@ from datetime import datetime
 
 from loguru import logger
 
-from .models import Asset, AssetType, Order, OrderType, Trade, TradingPair
+from .typing import Asset, AssetType, Order, OrderType, Trade, TradingPair
 
 
 class Exchange:

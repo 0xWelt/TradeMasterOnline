@@ -3,7 +3,7 @@
 import pytest
 
 from tmo.exchange import Exchange
-from tmo.models import AssetType, OrderType
+from tmo.typing import AssetType, OrderType
 
 
 class TestExchange:

@@ -30,6 +30,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["tmo"]
 
+[tool.hatch.metadata]
+typing-files = ["tmo/typing.py"]
+
 # Linter tools #################################################################
 
 [tool.codespell]
