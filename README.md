@@ -140,7 +140,7 @@ print(f"BTC/USDT 价格: ${btc_pair.current_price:,.2f}")
 uv run python examples/exchange_demo.py
 ```
 
-演示将生成 `exchange_demo.html` 文件，包含以下图表：
+演示将生成 `examples/exchange_demo.html` 文件，包含以下图表：
 - 价格变化趋势图
 - 订单簿深度图
 - 成交量分布图

@@ -61,7 +61,7 @@ class ExchangeVisualizer:
         )
 
     def create_visualization(
-        self, exchange: Exchange, output_file: str = 'exchange_demo.html'
+        self, exchange: Exchange, output_file: str = 'examples/exchange_demo.html'
     ) -> go.Figure:
         """创建交互式可视化图表"""
         logger.info('正在生成交互式可视化图表...')
@@ -368,7 +368,7 @@ def run_exchange_demo():
     visualizer.create_visualization(exchange)
 
     logger.info('可视化图表已生成完成！')
-    logger.info("请在浏览器中打开 'exchange_demo.html' 查看交互式图表")
+    logger.info("请在浏览器中打开 'examples/exchange_demo.html' 查看交互式图表")
 
 
 if __name__ == '__main__':

@@ -204,7 +204,7 @@ cython_debug/
 .cursorindexingignore
 
 # Generated files
-*.html
+examples/*.html
 
 # Marimo
 marimo/_static/
