@@ -58,4 +58,4 @@ Thumbs.db
 .git/
 
 # 其他大型目录
-node_modules/ 
+node_modules/
