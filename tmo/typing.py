@@ -1,19 +1,19 @@
 """交易所核心数据模型"""
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 
-class AssetType(str, Enum):
+class AssetType(StrEnum):
     """资产类型"""
 
     USDT = 'USDT'
     BTC = 'BTC'
 
 
-class OrderType(str, Enum):
+class OrderType(StrEnum):
     """订单类型"""
 
     BUY = 'buy'
