@@ -55,14 +55,16 @@ TradeMasterOnline/
 ├── tmo/                    # 主要代码目录
 │   ├── __init__.py        # 包初始化
 │   ├── typing.py          # 类型定义和数据模型
-│   └── exchange.py        # 交易所核心逻辑
+│   ├── exchange.py        # 交易所核心逻辑
+│   └── visualization.py   # 可视化工具模块
 ├── examples/              # 示例代码目录
 │   ├── __init__.py
 │   └── exchange_demo.py   # 交易所演示示例
 ├── tests/                 # 测试目录
 │   ├── __init__.py
 │   ├── test_typing.py     # 类型定义测试
-│   └── test_exchange.py   # 交易所测试
+│   ├── test_exchange.py   # 交易所测试
+│   └── test_visualization.py # 可视化模块测试
 ├── docs/                  # 文档目录
 ├── pyproject.toml         # 项目配置
 └── README.md             # 项目说明
@@ -85,7 +87,13 @@ TradeMasterOnline/
   - 价格更新
   - 订单簿维护
 
-### 可视化功能 (`examples/exchange_demo.py`)
+### 可视化工具 (`tmo.visualization`)
+- `ExchangeVisualizer`：交易所可视化器
+  - 时间轴快照记录
+  - 交互式图表生成
+  - 可拖动时间轴控制
+
+### 可视化功能 (`tmo.visualization`)
 - `ExchangeVisualizer`：交易所可视化器
 - 交互式时间轴可视化
 - 可拖动的时间轴，展示每个结算时刻的状态
