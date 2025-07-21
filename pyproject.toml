@@ -9,7 +9,7 @@ ignore-words = "docs/spelling_wordlist.txt"
 target-version = "py312"
 line-length = 100
 output-format = "full"
-src = ["tiny_rl", "examples"]
+src = ["tmo", "examples"]
 
 [tool.ruff.format]
 quote-style = "single"

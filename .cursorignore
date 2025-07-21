@@ -1,0 +1,81 @@
+# Cursor AI 忽略文件配置
+# 这些文件和目录将从 AI 功能（如自动补全和代码分析）中排除
+
+# 构建和分发文件
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 缓存文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.cache/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 日志文件
+*.log
+logs/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 临时文件
+*.tmp
+*.temp
+.tmp/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE 配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 文档构建
+docs/_build/
+site/
+
+# 测试覆盖率报告
+htmlcov/
+.coverage
+coverage.xml
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 大型数据文件
+*.csv
+*.json
+*.xml
+data/
+datasets/
+
+# 模型文件
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+models/
+
+# 其他
+.git/
+node_modules/ 

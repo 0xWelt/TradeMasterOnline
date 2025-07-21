@@ -1,2 +1,2 @@
 # TradeMasterOnline
-A multiplayer trading simulation game built almost entirely with vibe coding.
+A multi-agent trading simulation game built almost entirely with vibe coding.
