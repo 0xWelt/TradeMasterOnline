@@ -85,6 +85,16 @@ TradeMasterOnline/
   - 价格更新
   - 订单簿维护
 
+### 可视化功能 (`examples/exchange_demo.py`)
+- `ExchangeVisualizer`：交易所可视化器
+- 交互式图表生成
+- 价格变化趋势图
+- 订单簿深度图
+- 成交量分布图
+- 订单状态统计
+- 用户活跃度分析
+- 价格波动分析
+
 ## 使用示例
 
 ```python
@@ -114,11 +124,29 @@ sell_order = exchange.place_order(
 
 # 查看成交记录
 trades = exchange.get_recent_trades(AssetType.BTC)
+for trade in trades:
+    print(f"成交: {trade.quantity} BTC @ ${trade.price:,.2f}")
 
 # 查看当前价格
 btc_pair = exchange.get_trading_pair(AssetType.BTC)
-print(f'BTC/USDT 价格: ${btc_pair.current_price:,.2f}')
+print(f"BTC/USDT 价格: ${btc_pair.current_price:,.2f}")
 ```
+
+### 可视化演示
+
+运行完整的交易所演示，包含交互式可视化：
+
+```bash
+uv run python examples/exchange_demo.py
+```
+
+演示将生成 `exchange_demo.html` 文件，包含以下图表：
+- 价格变化趋势图
+- 订单簿深度图
+- 成交量分布图
+- 订单状态统计饼图
+- 用户交易活跃度柱状图
+- 价格波动分析图
 
 ## 开发规范
 
