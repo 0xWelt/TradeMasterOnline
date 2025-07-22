@@ -147,10 +147,10 @@ print(f"BTC/USDT 价格: ${btc_pair.current_price:,.2f}")
 
 ## 📊 Testing and Coverage
 
-[![pytest](https://img.shields.io/badge/pytest-8.4.1-brightgreen.svg)](https://pytest.org/)
-[![coverage](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)](https://github.com/0xWelt/TradeMasterOnline/actions)
+[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen.svg)](https://pytest.org/)
+[![coverage](https://img.shields.io/badge/coverage-enabled-brightgreen.svg)](https://github.com/0xWelt/TradeMasterOnline/actions)
 
-所有测试通过，代码覆盖率97%。运行测试：
+运行测试：
 ```bash
 uv run pytest --cov=tmo --cov-report=html --cov-report=term-missing
 ```
