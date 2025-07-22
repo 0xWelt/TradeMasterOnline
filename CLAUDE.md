@@ -4,7 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TradeMasterOnline is a multiplayer online trading simulation game built with Python 3.12+ using a vibe coding approach. It provides a simulated cryptocurrency exchange with support for BTC/USDT trading pairs, order matching, price updates, and comprehensive visualization capabilities.
+TradeMasterOnline is a multi-agent trading simulation game built almost entirely with vibe coding with K2. It provides a simulated cryptocurrency exchange with support for BTC/USDT trading pairs, order matching, price updates, and comprehensive visualization capabilities.
+
+## Repository
+- **GitHub**: https://github.com/0xWelt/TradeMasterOnline
+- **License**: Apache-2.0
+- **Author**: 0xWelt <dinghao12601@126.com>
 
 ## Core Architecture
 

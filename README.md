@@ -1,10 +1,10 @@
 # TradeMasterOnline
 
-多人在线交易模拟游戏，使用 vibe coding 构建。
+A multi-agent trading simulation game built almost entirely with vibe coding with K2.
 
 ## 项目概述
 
-TradeMasterOnline 是一个模拟交易所系统，实现了基础的交易功能，包括订单匹配、价格更新和交易记录等核心特性。
+TradeMasterOnline 是一个使用 Python 3.12+ 构建的多智能体交易模拟游戏，采用vibe coding方法开发。该项目提供了一个模拟的加密货币交易所，支持BTC/USDT交易对的完整交易功能。
 
 ## 功能特性
 
