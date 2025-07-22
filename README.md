@@ -8,99 +8,26 @@
 
 A multi-agent trading simulation game built almost entirely with vibe coding with K2.
 
-## 项目概述
+## 🚀 Quick Start
 
-TradeMasterOnline 是一个使用 Python 3.12+ 构建的多智能体交易模拟游戏，采用vibe coding方法开发。该项目提供了一个模拟的加密货币交易所，支持BTC/USDT交易对的完整交易功能。
-
-## 功能特性
-
-### 核心功能
-- **资产支持**：支持 USDT 和 BTC 两种资产
-- **交易对**：提供 BTC/USDT 交易对
-- **订单系统**：支持买入和卖出订单
-- **订单匹配**：自动匹配可成交的订单
-- **价格更新**：根据成交情况实时更新价格
-- **订单簿管理**：维护按价格排序的订单簿
-
-### 技术特性
-- **类型安全**：使用 Pydantic 进行数据验证
-- **代码质量**：遵循严格的编码规范
-- **完整测试**：提供全面的单元测试
-- **文档完善**：详细的代码文档和示例
-
-## 快速开始
-
-### 环境要求
-- Python 3.12+
-- uv 包管理器
-
-### 安装依赖
+### Installation
 ```bash
-uv sync
+# Clone the repository
+git clone https://github.com/0xWelt/TradeMasterOnline.git
+cd TradeMasterOnline
+
+# Install dependencies
+uv sync --extra dev
 ```
 
-### 运行示例
-```bash
-uv run python examples/exchange_demo.py
-```
-
-### 运行测试
-```bash
-uv run pytest
-```
-
-### 检查代码质量
-```bash
-uv run pre-commit run --all-files
-```
-
-## 项目结构
-
-```
-TradeMasterOnline/
-├── tmo/                    # 主要代码目录
-│   ├── __init__.py        # 包初始化
-│   ├── typing.py          # 类型定义和数据模型
-│   └── exchange.py        # 交易所核心逻辑
-├── examples/              # 示例代码目录
-│   └── __init__.py
-├── tests/                 # 测试目录
-│   ├── __init__.py
-│   ├── test_typing.py     # 类型定义测试
-│   └── test_exchange.py   # 交易所测试
-├── docs/                  # 文档目录
-├── pyproject.toml         # 项目配置
-└── README.md             # 项目说明
-```
-
-## 核心组件
-
-### 类型定义 (`tmo.typing`)
-- `AssetType`：资产类型枚举
-- `OrderType`：订单类型枚举
-- `Asset`：资产模型
-- `Order`：订单模型
-- `Trade`：成交记录模型
-- `TradingPair`：交易对模型
-
-### 交易所 (`tmo.exchange`)
-- `Exchange`：交易所核心类
-  - 订单管理
-  - 订单匹配
-  - 价格更新
-  - 订单簿维护
-
-## 使用示例
-
+### Basic Usage
 ```python
-from tmo.exchange import Exchange
-from tmo.typing import AssetType, OrderType
+from tmo import Exchange, AssetType, OrderType
 
-# 创建交易所实例
 exchange = Exchange()
 
-# 下买单
-buy_order = exchange.place_order(
+# Place a buy order
+order = exchange.place_order(
     user_id='user1',
     order_type=OrderType.BUY,
     asset=AssetType.BTC,
@@ -108,54 +35,153 @@ buy_order = exchange.place_order(
     price=50000.0
 )
 
-# 下卖单
-sell_order = exchange.place_order(
-    user_id='user2',
-    order_type=OrderType.SELL,
-    asset=AssetType.BTC,
-    quantity=0.5,
-    price=50000.0
-)
-
-# 查看成交记录
-trades = exchange.get_recent_trades(AssetType.BTC)
-for trade in trades:
-    print(f"成交: {trade.quantity} BTC @ ${trade.price:,.2f}")
-
-# 查看当前价格
+# Get market data
 btc_pair = exchange.get_trading_pair(AssetType.BTC)
-print(f"BTC/USDT 价格: ${btc_pair.current_price:,.2f}")
+print(f"BTC/USDT: ${btc_pair.current_price:,.2f}")
 ```
 
-## 开发规范
+### Run Tests
+```bash
+uv run pytest --cov=tmo --cov-report=html --cov-report=term-missing
+```
 
-### 代码质量
-- 使用 ruff 进行代码格式化和检查
-- 遵循 flake8 规范
-- 使用类型注解
-- 支持中文注释和文档
+## 📋 Features
 
-### 测试要求
-- 所有新功能必须提供单元测试
-- 测试覆盖度建议 >80%
-- 使用 pytest 框架
+### Core Trading Features
+- **Asset Support**: USDT and BTC assets
+- **Trading Pairs**: BTC/USDT with real-time price updates
+- **Order System**: Buy/Sell orders with automatic matching
+- **Order Book**: Price-sorted matching engine
+- **Trade History**: Complete transaction records
 
-### 提交规范
-- 使用 pre-commit 进行代码质量检查
-- 编写清晰的提交信息
-- 确保所有测试通过
+### Technical Features
+- **Type Safety**: Full type annotations with Pydantic
+- **Modern Stack**: Python 3.12+ with uv package management
+- **Code Quality**: Ruff formatting and pre-commit hooks
+- **Testing**: Comprehensive pytest suite with coverage
+- **Documentation**: Chinese and English support
+
+## 🏗️ Architecture
+
+### Core Components
+
+**Exchange Engine (`tmo/exchange.py`)**
+- Central trading engine managing orders and trades
+- Order matching system using price-time priority
+- Real-time price updates based on executed trades
+
+**Data Models (`tmo/typing.py`)**
+- `AssetType`: USDT, BTC asset definitions
+- `Order`: Order management with lifecycle states
+- `Trade`: Transaction records between buy/sell orders
+- `TradingPair`: Market data and price tracking
+
+## 🛠️ Development
+
+### Environment Setup
+```bash
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install dependencies
+uv sync --extra dev
+
+# Run tests
+uv run pytest
+
+# Format code
+uv run ruff format
+
+# Check code style
+uv run ruff check
+```
+
+### Development Commands
+| Command | Description |
+|---------|-------------|
+| `uv run pytest` | Run all tests |
+| `uv run pytest --cov` | Run tests with coverage |
+| `uv run ruff format` | Format code |
+| `uv run ruff check --fix` | Fix linting issues |
+| `uv run pre-commit run --all-files` | Run pre-commit hooks |
 
 ## 📊 Testing and Coverage
 
 [![pytest](https://img.shields.io/badge/pytest-passing-brightgreen.svg)](https://pytest.org/)
 [![coverage](https://img.shields.io/badge/coverage-enabled-brightgreen.svg)](https://github.com/0xWelt/TradeMasterOnline/actions)
 
-运行测试：
-```bash
-uv run pytest --cov=tmo --cov-report=html --cov-report=term-missing
+## 🏗️ Project Structure
+
+```
+TradeMasterOnline/
+├── tmo/                    # Main package
+│   ├── __init__.py        # Package exports
+│   ├── exchange.py        # Trading engine
+│   └── typing.py          # Data models
+├── tests/                 # Test suite
+├── .github/               # GitHub Actions
+├── docs/                  # Documentation
+├── pyproject.toml         # Project configuration
+└── README.md             # Project documentation
 ```
 
-## ⭐ Star History
+## 🚀 Installation
+
+### Requirements
+- Python 3.12+
+- [uv](https://github.com/astral-sh/uv) package manager
+
+### From Source
+```bash
+git clone https://github.com/0xWelt/TradeMasterOnline.git
+cd TradeMasterOnline
+uv sync --extra dev
+```
+
+## 🎯 Usage Examples
+
+### Basic Trading
+```python
+from tmo import Exchange, AssetType, OrderType
+
+exchange = Exchange()
+
+# Create buy order
+buy_order = exchange.place_order(
+    user_id='alice',
+    order_type=OrderType.BUY,
+    asset=AssetType.BTC,
+    quantity=1.0,
+    price=50000.0
+)
+
+# Create sell order
+sell_order = exchange.place_order(
+    user_id='bob',
+    order_type=OrderType.SELL,
+    asset=AssetType.BTC,
+    quantity=0.5,
+    price=50000.0
+)
+
+# View trades
+trades = exchange.get_recent_trades(AssetType.BTC)
+for trade in trades:
+    print(f"Trade: {trade.quantity} BTC @ ${trade.price:,.2f}")
+```
+
+### Advanced Features
+```python
+# Get order book
+order_book = exchange.get_order_book(AssetType.BTC)
+print(f"Top buy: ${order_book[OrderType.BUY][0].price}")
+print(f"Top sell: ${order_book[OrderType.SELL][0].price}")
+
+# Cancel order
+exchange.cancel_order(order_id)
+```
+
+## 🌟 Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=0xWelt/TradeMasterOnline&type=Date)](https://star-history.com/#0xWelt/TradeMasterOnline&Date)
 
@@ -165,11 +191,7 @@ uv run pytest --cov=tmo --cov-report=html --cov-report=term-missing
   <img src="https://contrib.rocks/image?repo=0xWelt/TradeMasterOnline" alt="Contributors" />
 </a>
 
-感谢所有贡献者！欢迎通过Issue和PR参与项目。
-
 ## 📜 Citation
-
-如果你在你的研究或项目中使用了TradeMasterOnline，请引用：
 
 ```bibtex
 @software{TradeMasterOnline,
@@ -188,7 +210,7 @@ Distributed under the Apache-2.0 License. See [`LICENSE`](./LICENSE) for details
 ## 🤝 Acknowledgments
 
 - Built with [uv](https://github.com/astral-sh/uv) - Python package manager
-- Code style by [ruff](https://github.com/astral-sh/ruff) - Fast Python linter and formatter
+- Code style by [ruff](https://github.com/astral-sh/ruff) - Fast Python linter
 - Testing with [pytest](https://pytest.org/) and [pytest-cov](https://pytest-cov.readthedocs.io/)
 - Data validation with [pydantic](https://docs.pydantic.dev/)
 - Visualization with [plotly](https://plotly.com/python/)
