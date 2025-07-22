@@ -1,6 +1,7 @@
 # TradeMasterOnline
 
 [![CI](https://github.com/0xWelt/TradeMasterOnline/workflows/Pytest%20CI/badge.svg)](https://github.com/0xWelt/TradeMasterOnline/actions)
+[![codecov](https://codecov.io/gh/0xWelt/TradeMasterOnline/branch/main/graph/badge.svg?token=codecov-umbrella)](https://codecov.io/gh/0xWelt/TradeMasterOnline)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/0xWelt/TradeMasterOnline/blob/main/LICENSE)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
@@ -106,9 +107,6 @@ uv run ruff check
 | `uv run pre-commit run --all-files` | Run pre-commit hooks |
 
 ## 📊 Testing and Coverage
-
-[![pytest](https://img.shields.io/badge/pytest-passing-brightgreen.svg)](https://pytest.org/)
-[![coverage](https://img.shields.io/badge/coverage-enabled-brightgreen.svg)](https://github.com/0xWelt/TradeMasterOnline/actions)
 
 ## 🏗️ Project Structure
 
