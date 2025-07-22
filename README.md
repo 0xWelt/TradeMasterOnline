@@ -1,5 +1,11 @@
 # TradeMasterOnline
 
+[![CI](https://github.com/0xWelt/TradeMasterOnline/workflows/Pytest%20CI/badge.svg)](https://github.com/0xWelt/TradeMasterOnline/actions)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](https://github.com/0xWelt/TradeMasterOnline/blob/main/LICENSE)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
 A multi-agent trading simulation game built almost entirely with vibe coding with K2.
 
 ## 项目概述
