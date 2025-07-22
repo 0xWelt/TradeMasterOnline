@@ -9,7 +9,7 @@ from .typing import Asset, AssetType, Order, OrderType, Trade, TradingPair
 
 
 class Exchange:
-    """模拟交易所"""
+    """模拟交易所 - 提供完整的交易撮合系统"""
 
     def __init__(self):
         """初始化交易所"""
@@ -31,9 +31,9 @@ class Exchange:
         # 订单簿：按价格排序的订单列表
         self.order_books: dict[str, dict[OrderType, list[Order]]] = {
             'BTC/USDT': {
-                OrderType.BUY: [],
-                OrderType.SELL: [],
-            }  # 买单按价格降序排列  # 卖单按价格升序排列
+                OrderType.BUY: [],  # 买单按价格降序排列
+                OrderType.SELL: [],  # 卖单按价格升序排列
+            }
         }
 
         # 成交记录
@@ -42,11 +42,14 @@ class Exchange:
         # 订单索引
         self.orders: dict[str, Order] = {}
 
+    # ====================
+    # 操作接口 - 订单管理
+    # ====================
+
     def place_order(
         self, user_id: str, order_type: OrderType, asset: AssetType, quantity: float, price: float
     ) -> Order:
-        """下单"""
-        # 创建订单
+        """下单并立即执行匹配"""
         order = Order(
             id=str(uuid.uuid4()),
             user_id=user_id,
@@ -63,23 +66,163 @@ class Exchange:
         # 存储订单
         self.orders[order.id] = order
 
-        # 添加到订单簿
-        self._add_to_order_book(order)
-
-        # 尝试匹配订单
-        self._match_orders(asset)
+        # 添加到订单簿并立即匹配
+        self._process_new_order(order)
 
         return order
 
-    def _add_to_order_book(self, order: Order) -> None:
-        """将订单添加到订单簿"""
+    def cancel_order(self, order_id: str) -> bool:
+        """取消订单"""
+        order = self.orders.get(order_id)
+        if not order or order.is_filled:
+            logger.debug(f'无法取消订单 {order_id}: 订单不存在或已成交')
+            return False
+
+        # 从订单簿中移除
+        self._remove_from_order_book(order)
+
+        # 更新订单状态
+        order.status = 'cancelled'
+        logger.debug(
+            f'用户 {order.user_id} 取消订单: {order.quantity} {order.asset.value} @ ${order.price:,.2f}'
+        )
+
+        return True
+
+    # ====================
+    # 状态快照接口
+    # ====================
+
+    def get_state_snapshot(self) -> dict:
+        """获取交易所完整状态快照"""
+        return {
+            'assets': self.assets.copy(),
+            'trading_pairs': {
+                symbol: {
+                    'base_asset': pair.base_asset,
+                    'quote_asset': pair.quote_asset,
+                    'current_price': pair.current_price,
+                    'last_update': pair.last_update,
+                }
+                for symbol, pair in self.trading_pairs.items()
+            },
+            'order_books': {
+                symbol: {
+                    'BUY': [order.model_dump() for order in orders[OrderType.BUY]],
+                    'SELL': [order.model_dump() for order in orders[OrderType.SELL]],
+                }
+                for symbol, orders in self.order_books.items()
+            },
+            'trades': [trade.model_dump() for trade in self.trades],
+            'orders': {order_id: order.model_dump() for order_id, order in self.orders.items()},
+        }
+
+    # ====================
+    # 查询接口
+    # ====================
+
+    def get_market_price(self, asset: AssetType) -> float:
+        """获取交易对当前市场价格"""
+        pair_symbol = f'{asset.value}/USDT'
+        if pair_symbol in self.trading_pairs:
+            return self.trading_pairs[pair_symbol].current_price
+        raise ValueError(f'不存在的交易对: {pair_symbol}')
+
+    def get_market_depth(self, asset: AssetType) -> dict:
+        """获取交易对市场深度信息"""
+        pair_symbol = f'{asset.value}/USDT'
+        if pair_symbol not in self.order_books:
+            return {'bids': [], 'asks': []}
+
+        order_book = self.order_books[pair_symbol]
+        return {
+            'bids': [
+                {'price': order.price, 'quantity': order.remaining_quantity}
+                for order in order_book[OrderType.BUY]
+            ],
+            'asks': [
+                {'price': order.price, 'quantity': order.remaining_quantity}
+                for order in order_book[OrderType.SELL]
+            ],
+        }
+
+    def get_market_summary(self, asset: AssetType) -> dict:
+        """获取交易对市场摘要"""
+        pair_symbol = f'{asset.value}/USDT'
+        if pair_symbol not in self.trading_pairs:
+            raise ValueError(f'不存在的交易对: {pair_symbol}')
+
+        trading_pair = self.trading_pairs[pair_symbol]
+        recent_trades = self._get_recent_trades_for_asset(asset, limit=50)
+        order_book = self.order_books[pair_symbol]
+
+        return {
+            'symbol': pair_symbol,
+            'current_price': trading_pair.current_price,
+            'last_update': trading_pair.last_update,
+            'total_bids': len(order_book[OrderType.BUY]),
+            'total_asks': len(order_book[OrderType.SELL]),
+            'recent_trades': len(recent_trades),
+            'best_bid': order_book[OrderType.BUY][0].price if order_book[OrderType.BUY] else None,
+            'best_ask': order_book[OrderType.SELL][0].price if order_book[OrderType.SELL] else None,
+        }
+
+    def get_order_book(self, asset: AssetType) -> dict[OrderType, list[Order]]:
+        """获取订单簿"""
+        pair_symbol = f'{asset.value}/USDT'
+        if pair_symbol in self.order_books:
+            return self.order_books[pair_symbol].copy()
+        return {OrderType.BUY: [], OrderType.SELL: []}
+
+    def get_trading_pair(self, asset: AssetType) -> TradingPair | None:
+        """获取交易对信息"""
+        pair_symbol = f'{asset.value}/USDT'
+        return self.trading_pairs.get(pair_symbol)
+
+    def get_recent_trades(self, asset: AssetType, limit: int = 10) -> list[Trade]:
+        """获取最近的成交记录"""
+        return self._get_recent_trades_for_asset(asset, limit)
+
+    def get_order(self, order_id: str) -> Order | None:
+        """获取订单信息"""
+        return self.orders.get(order_id)
+
+    def get_order_status(self, order_id: str) -> dict:
+        """获取订单详细状态"""
+        order = self.orders.get(order_id)
+        if not order:
+            raise ValueError(f'不存在的订单: {order_id}')
+
+        return {
+            'order': order.model_dump(),
+            'trading_pair': f'{order.asset.value}/USDT',
+            'filled_percentage': (order.filled_quantity / order.quantity * 100)
+            if order.quantity > 0
+            else 0,
+            'is_active': order.status in ['pending', 'partially_filled'],
+        }
+
+    # ====================
+    # 内部实现 - 私有方法
+    # ====================
+
+    def _process_new_order(self, order: Order) -> None:
+        """处理新订单：添加到订单簿并执行匹配"""
         pair_symbol = f'{order.asset.value}/USDT'
         if pair_symbol not in self.order_books:
             return
 
+        # 添加到订单簿
+        self._add_to_order_book(order)
+
+        # 立即执行匹配
+        self._match_orders(pair_symbol)
+
+    def _add_to_order_book(self, order: Order) -> None:
+        """将订单添加到订单簿"""
+        pair_symbol = f'{order.asset.value}/USDT'
         order_list = self.order_books[pair_symbol][order.order_type]
 
-        # 根据订单类型插入到合适位置
         if order.order_type == OrderType.BUY:
             # 买单按价格降序排列（价格高的优先）
             self._insert_buy_order(order_list, order)
@@ -103,9 +246,16 @@ class Exchange:
                 return
         order_list.append(order)
 
-    def _match_orders(self, asset: AssetType) -> None:
+    def _remove_from_order_book(self, order: Order) -> None:
+        """从订单簿中移除订单"""
+        pair_symbol = f'{order.asset.value}/USDT'
+        if pair_symbol in self.order_books:
+            order_list = self.order_books[pair_symbol][order.order_type]
+            if order in order_list:
+                order_list.remove(order)
+
+    def _match_orders(self, pair_symbol: str) -> None:
         """匹配订单"""
-        pair_symbol = f'{asset.value}/USDT'
         if pair_symbol not in self.order_books:
             return
 
@@ -156,7 +306,6 @@ class Exchange:
         )
 
         logger.debug(f'成交: {trade_quantity} {buy_order.asset.value} @ ${trade_price:,.2f}')
-
         return trade
 
     def _update_order_status(self, order: Order) -> None:
@@ -183,46 +332,7 @@ class Exchange:
             # 移除已完成的订单
             order_list[:] = [order for order in order_list if not order.is_filled]
 
-    def get_order_book(self, asset: AssetType) -> dict[OrderType, list[Order]]:
-        """获取订单簿"""
-        pair_symbol = f'{asset.value}/USDT'
-        if pair_symbol in self.order_books:
-            return self.order_books[pair_symbol].copy()
-        return {OrderType.BUY: [], OrderType.SELL: []}
-
-    def get_trading_pair(self, asset: AssetType) -> TradingPair | None:
-        """获取交易对信息"""
-        pair_symbol = f'{asset.value}/USDT'
-        return self.trading_pairs.get(pair_symbol)
-
-    def get_recent_trades(self, asset: AssetType, limit: int = 10) -> list[Trade]:
-        """获取最近的成交记录"""
+    def _get_recent_trades_for_asset(self, asset: AssetType, limit: int) -> list[Trade]:
+        """获取特定资产的最近成交记录"""
         asset_trades = [trade for trade in self.trades if trade.asset == asset]
         return sorted(asset_trades, key=lambda x: x.timestamp, reverse=True)[:limit]
-
-    def get_order(self, order_id: str) -> Order | None:
-        """获取订单信息"""
-        return self.orders.get(order_id)
-
-    def cancel_order(self, order_id: str) -> bool:
-        """取消订单"""
-        order = self.orders.get(order_id)
-        if not order or order.is_filled:
-            logger.debug(f'无法取消订单 {order_id}: 订单不存在或已成交')
-            return False
-
-        # 从订单簿中移除
-        pair_symbol = f'{order.asset.value}/USDT'
-        if pair_symbol in self.order_books:
-            order_list = self.order_books[pair_symbol][order.order_type]
-            if order in order_list:
-                order_list.remove(order)
-
-        # 更新订单状态
-        order.status = 'cancelled'
-
-        logger.debug(
-            f'用户 {order.user_id} 取消订单: {order.quantity} {order.asset.value} @ ${order.price:,.2f}'
-        )
-
-        return True

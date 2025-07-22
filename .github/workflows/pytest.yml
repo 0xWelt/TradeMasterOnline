@@ -24,10 +24,16 @@ jobs:
 
     - name: Run pytest
       run: |
-        uv run pytest --cov=tmo --cov-report=xml --cov-report=term-missing
+        uv run pytest -n 8 -vvv --cov=tmo --cov-report=xml --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         slug: 0xWelt/TradeMasterOnline
+
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@v1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
