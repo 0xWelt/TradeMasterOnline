@@ -145,15 +145,56 @@ print(f"BTC/USDT 价格: ${btc_pair.current_price:,.2f}")
 - 编写清晰的提交信息
 - 确保所有测试通过
 
-## 许可证
+## 📊 Testing and Coverage
 
-MIT License
+[![pytest](https://img.shields.io/badge/pytest-8.4.1-brightgreen.svg)](https://pytest.org/)
+[![coverage](https://img.shields.io/badge/coverage-97%25-brightgreen.svg)](https://github.com/0xWelt/TradeMasterOnline/actions)
 
-## 贡献
+所有测试通过，代码覆盖率97%。运行测试：
+```bash
+uv run pytest --cov=tmo --cov-report=html --cov-report=term-missing
+```
 
-欢迎提交 Issue 和 Pull Request！
+## ⭐ Star History
 
-## 联系方式
+[![Star History Chart](https://api.star-history.com/svg?repos=0xWelt/TradeMasterOnline&type=Date)](https://star-history.com/#0xWelt/TradeMasterOnline&Date)
 
-- 项目团队：TradeMasterOnline Team
-- 邮箱：team@trademaster.online
+## 👥 Contributors
+
+<a href="https://github.com/0xWelt/TradeMasterOnline/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=0xWelt/TradeMasterOnline" alt="Contributors" />
+</a>
+
+感谢所有贡献者！欢迎通过Issue和PR参与项目。
+
+## 📜 Citation
+
+如果你在你的研究或项目中使用了TradeMasterOnline，请引用：
+
+```bibtex
+@software{TradeMasterOnline,
+  author  = {0xWelt},
+  title   = {TradeMasterOnline: A multi-agent trading simulation game built with vibe coding},
+  url     = {https://github.com/0xWelt/TradeMasterOnline},
+  license = {Apache-2.0},
+  year    = {2025}
+}
+```
+
+## 📄 License
+
+Distributed under the Apache-2.0 License. See [`LICENSE`](./LICENSE) for details.
+
+## 🤝 Acknowledgments
+
+- Built with [uv](https://github.com/astral-sh/uv) - Python package manager
+- Code style by [ruff](https://github.com/astral-sh/ruff) - Fast Python linter and formatter
+- Testing with [pytest](https://pytest.org/) and [pytest-cov](https://pytest-cov.readthedocs.io/)
+- Data validation with [pydantic](https://docs.pydantic.dev/)
+- Visualization with [plotly](https://plotly.com/python/)
+
+<br/>
+
+<div align="right">
+  <a href="#top">🔝 back to top</a>
+</div>
