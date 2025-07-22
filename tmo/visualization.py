@@ -114,7 +114,7 @@ class ExchangeVisualizer:
                 col=1,
             )
 
-        # 2. 订单簿深度（显示最新状态）
+        # 2. 订单簿深度（显示最终状态）
         if self.timeline_data:
             latest_snapshot = self.timeline_data[-1]
 
@@ -235,6 +235,131 @@ class ExchangeVisualizer:
                 col=2,
             )
 
+        # 创建动画帧，每个帧对应一个时间步骤
+        frames = []
+        for i, snapshot in enumerate(self.timeline_data):
+            frame_data = []
+
+            # 1. 价格变化时间轴（保持不变）
+            if self.timeline_data:
+                df_timeline = pd.DataFrame(self.timeline_data)
+                frame_data.append(
+                    go.Scatter(
+                        x=df_timeline['step'],
+                        y=df_timeline['price'],
+                        mode='lines+markers',
+                        name='BTC/USDT 价格',
+                        line={'color': '#1f77b4', 'width': 3},
+                        marker={'size': 8, 'color': '#1f77b4'},
+                        hovertemplate='<b>%{text}</b><br>价格: $%{y:,.2f}<br>步骤: %{x}<extra></extra>',
+                        text=df_timeline['step_name'],
+                    )
+                )
+
+            # 2. 订单簿深度（根据当前步骤更新）
+            if snapshot['buy_orders']:
+                buy_prices = [order['price'] for order in snapshot['buy_orders']]
+                buy_quantities = [order['quantity'] for order in snapshot['buy_orders']]
+                frame_data.append(
+                    go.Bar(
+                        x=buy_prices,
+                        y=buy_quantities,
+                        name='买单',
+                        marker_color='rgba(0, 255, 0, 0.6)',
+                        orientation='h',
+                        hovertemplate='价格: $%{x:,.2f}<br>数量: %{y} BTC<extra></extra>',
+                    )
+                )
+
+            if snapshot['sell_orders']:
+                sell_prices = [order['price'] for order in snapshot['sell_orders']]
+                sell_quantities = [order['quantity'] for order in snapshot['sell_orders']]
+                frame_data.append(
+                    go.Bar(
+                        x=sell_prices,
+                        y=sell_quantities,
+                        name='卖单',
+                        marker_color='rgba(255, 0, 0, 0.6)',
+                        orientation='h',
+                        hovertemplate='价格: $%{x:,.2f}<br>数量: %{y} BTC<extra></extra>',
+                    )
+                )
+
+            # 3. 成交量分布（累积到当前步骤）
+            all_trades = []
+            for j in range(i + 1):  # 只包含到当前步骤的成交
+                all_trades.extend(self.timeline_data[j]['recent_trades'])
+
+            if all_trades:
+                df_trades = pd.DataFrame(all_trades)
+                frame_data.append(
+                    go.Histogram(
+                        x=df_trades['price'],
+                        nbinsx=10,
+                        name='成交量分布',
+                        marker_color='rgba(100, 149, 237, 0.7)',
+                        hovertemplate='价格区间: $%{x}<br>成交量: %{y}<extra></extra>',
+                    )
+                )
+
+            # 4. 订单状态统计（当前步骤）
+            status_counts = {}
+            for order in snapshot['buy_orders'] + snapshot['sell_orders']:
+                status = order['status']
+                status_counts[status] = status_counts.get(status, 0) + 1
+
+            if status_counts:
+                frame_data.append(
+                    go.Pie(
+                        labels=list(status_counts.keys()),
+                        values=list(status_counts.values()),
+                        name='订单状态',
+                        hole=0.3,
+                        hovertemplate='状态: %{label}<br>数量: %{value}<extra></extra>',
+                    )
+                )
+
+            # 5. 用户交易活跃度（累积到当前步骤）
+            user_activity = {}
+            for j in range(i + 1):  # 只包含到当前步骤的订单
+                for order in (
+                    self.timeline_data[j]['buy_orders'] + self.timeline_data[j]['sell_orders']
+                ):
+                    user_id = order['user_id']
+                    user_activity[user_id] = user_activity.get(user_id, 0) + 1
+
+            if user_activity:
+                frame_data.append(
+                    go.Bar(
+                        x=list(user_activity.keys()),
+                        y=list(user_activity.values()),
+                        name='用户活跃度',
+                        marker_color='rgba(255, 165, 0, 0.7)',
+                        hovertemplate='用户: %{x}<br>订单数: %{y}<extra></extra>',
+                    )
+                )
+
+            # 6. 时间轴控制（保持不变）
+            if self.timeline_data:
+                df_timeline = pd.DataFrame(self.timeline_data)
+                frame_data.append(
+                    go.Scatter(
+                        x=df_timeline['step'],
+                        y=[1] * len(df_timeline),
+                        mode='markers+text',
+                        name='时间轴步骤',
+                        marker={'size': 12, 'color': '#ff7f0e'},
+                        text=df_timeline['step_name'],
+                        textposition='top center',
+                        hovertemplate='<b>%{text}</b><br>步骤: %{x}<br>价格: $%{customdata:,.2f}<extra></extra>',
+                        customdata=df_timeline['price'],
+                    )
+                )
+
+            frames.append(go.Frame(data=frame_data, name=str(i)))
+
+        fig.frames = frames
+
         # 更新布局
         fig.update_layout(
             title={
@@ -259,11 +384,11 @@ class ExchangeVisualizer:
                     'steps': [
                         {
                             'args': [
-                                [i],
+                                [str(i)],
                                 {
-                                    'frame': {'duration': 300, 'redraw': True},
+                                    'frame': {'duration': 0, 'redraw': True},
                                     'mode': 'immediate',
-                                    'transition': {'duration': 300},
+                                    'transition': {'duration': 0},
                                 },
                             ],
                             'label': f'步骤 {i + 1}',
