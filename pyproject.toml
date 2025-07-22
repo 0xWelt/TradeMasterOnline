@@ -16,6 +16,7 @@ dependencies = [
     "matplotlib>=3.7.0",
     "plotly>=5.15.0",
     "pandas>=2.0.0",
+    "pre-commit>=4.2.0",
 ]
 
 [project.optional-dependencies]
@@ -153,3 +154,9 @@ inline-quotes = "single"
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+]

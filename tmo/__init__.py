@@ -5,14 +5,12 @@ __author__ = 'TradeMasterOnline Team'
 
 from .exchange import Exchange
 from .typing import Asset, AssetType, Order, OrderType, Trade, TradingPair
-from .visualization import ExchangeVisualizer
 
 
 __all__ = [
     'Asset',
     'AssetType',
     'Exchange',
-    'ExchangeVisualizer',
     'Order',
     'OrderType',
     'Trade',
