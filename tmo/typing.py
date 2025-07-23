@@ -26,9 +26,12 @@ class OrderType(StrEnum):
 class Asset(BaseModel):
     """资产模型"""
 
-    symbol: AssetType
-    name: str
+    symbol: AssetType = Field(frozen=True)
+    """资产类型"""
+    name: str = Field(frozen=True)
+    """资产名称"""
     description: str = ''
+    """资产描述"""
 
 
 class Portfolio(BaseModel):
@@ -52,13 +55,13 @@ class Portfolio(BaseModel):
 class User(BaseModel):
     """用户模型"""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """用户唯一标识"""
-    username: str
+    username: str = Field(frozen=True)
     """用户名"""
-    email: str
+    email: str = Field(frozen=True)
     """邮箱"""
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=datetime.now, frozen=True)
     """创建时间"""
     portfolios: dict[AssetType, Portfolio] = Field(default_factory=dict)
     """持仓信息"""
@@ -90,19 +93,19 @@ class User(BaseModel):
 class Order(BaseModel):
     """订单模型"""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """订单唯一标识"""
-    user: User
+    user: User = Field(frozen=True)
     """关联的用户对象"""
-    order_type: OrderType
+    order_type: OrderType = Field(frozen=True)
     """订单类型：买入或卖出"""
-    asset: AssetType
+    asset: AssetType = Field(frozen=True)
     """交易资产"""
-    quantity: float = Field(gt=0)
+    quantity: float = Field(gt=0, frozen=True)
     """数量"""
-    price: float = Field(gt=0)
+    price: float = Field(gt=0, frozen=True)
     """价格"""
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
     """创建时间"""
     filled_quantity: float = Field(default=0, ge=0)
     """已成交数量"""
@@ -176,19 +179,19 @@ class Order(BaseModel):
 class Trade(BaseModel):
     """成交记录模型"""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """成交记录唯一标识"""
-    buy_order: Order
+    buy_order: Order = Field(frozen=True)
     """买单对象"""
-    sell_order: Order
+    sell_order: Order = Field(frozen=True)
     """卖单对象"""
-    asset: AssetType
+    asset: AssetType = Field(frozen=True)
     """交易资产"""
-    quantity: float = Field(gt=0)
+    quantity: float = Field(gt=0, frozen=True)
     """成交数量"""
-    price: float = Field(gt=0)
+    price: float = Field(gt=0, frozen=True)
     """成交价格"""
-    timestamp: datetime = Field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
     """成交时间"""
 
     @property
@@ -205,9 +208,9 @@ class Trade(BaseModel):
 class TradingPair(BaseModel):
     """交易对模型"""
 
-    base_asset: AssetType
+    base_asset: AssetType = Field(frozen=True)
     """基础资产"""
-    quote_asset: AssetType
+    quote_asset: AssetType = Field(frozen=True)
     """计价资产"""
     current_price: float = Field(gt=0)
     """当前价格"""
