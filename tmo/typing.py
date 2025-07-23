@@ -26,6 +26,8 @@ class OrderType(StrEnum):
 class Asset(BaseModel):
     """资产模型"""
 
+    model_config = {"extra": "forbid"}
+
     symbol: AssetType = Field(frozen=True)
     """资产类型"""
     name: str = Field(frozen=True)
@@ -37,7 +39,9 @@ class Asset(BaseModel):
 class Portfolio(BaseModel):
     """用户持仓模型"""
 
-    asset: AssetType
+    model_config = {"extra": "forbid"}
+
+    asset: AssetType = Field(frozen=True)
     """资产类型"""
     available_balance: float = Field(default=0, ge=0)
     """可用余额"""
@@ -55,6 +59,8 @@ class Portfolio(BaseModel):
 class User(BaseModel):
     """用户模型"""
 
+    model_config = {"extra": "forbid"}
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """用户唯一标识"""
     username: str = Field(frozen=True)
@@ -65,6 +71,13 @@ class User(BaseModel):
     """创建时间"""
     portfolios: dict[AssetType, Portfolio] = Field(default_factory=dict)
     """持仓信息"""
+
+    def __init__(self, **data):
+        """初始化用户，防止手动设置自动生成的字段"""
+        # 移除用户可能尝试设置的自动生成字段
+        data.pop("id", None)
+        data.pop("created_at", None)
+        super().__init__(**data)
 
     def update_balance(
         self, asset: AssetType, available_change: float, locked_change: float
@@ -93,6 +106,8 @@ class User(BaseModel):
 class Order(BaseModel):
     """订单模型"""
 
+    model_config = {"extra": "forbid"}
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """订单唯一标识"""
     user: User = Field(frozen=True)
@@ -111,6 +126,13 @@ class Order(BaseModel):
     """已成交数量"""
     status: str = Field(default='pending')
     """订单状态"""
+
+    def __init__(self, **data):
+        """初始化订单，防止手动设置自动生成的字段"""
+        # 移除用户可能尝试设置的自动生成字段
+        data.pop("id", None)
+        data.pop("timestamp", None)
+        super().__init__(**data)
 
     @property
     def user_id(self) -> str:
@@ -179,6 +201,8 @@ class Order(BaseModel):
 class Trade(BaseModel):
     """成交记录模型"""
 
+    model_config = {"extra": "forbid"}
+
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """成交记录唯一标识"""
     buy_order: Order = Field(frozen=True)
@@ -193,6 +217,13 @@ class Trade(BaseModel):
     """成交价格"""
     timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
     """成交时间"""
+
+    def __init__(self, **data):
+        """初始化成交记录，防止手动设置自动生成的字段"""
+        # 移除用户可能尝试设置的自动生成字段
+        data.pop("id", None)
+        data.pop("timestamp", None)
+        super().__init__(**data)
 
     @property
     def buy_order_id(self) -> str:
