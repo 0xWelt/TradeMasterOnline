@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class AssetType(StrEnum):
@@ -26,7 +26,7 @@ class OrderType(StrEnum):
 class Asset(BaseModel):
     """资产模型"""
 
-    model_config = {"extra": "forbid"}
+    model_config = {'extra': 'forbid'}
 
     symbol: AssetType = Field(frozen=True)
     """资产类型"""
@@ -39,7 +39,7 @@ class Asset(BaseModel):
 class Portfolio(BaseModel):
     """用户持仓模型"""
 
-    model_config = {"extra": "forbid"}
+    model_config = {'extra': 'forbid'}
 
     asset: AssetType = Field(frozen=True)
     """资产类型"""
@@ -59,7 +59,7 @@ class Portfolio(BaseModel):
 class User(BaseModel):
     """用户模型"""
 
-    model_config = {"extra": "forbid"}
+    model_config = {'extra': 'forbid'}
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """用户唯一标识"""
@@ -74,7 +74,7 @@ class User(BaseModel):
 
     @field_validator('id', 'created_at', mode='before')
     @classmethod
-    def _validate_auto_generated_fields(cls, v, info):
+    def _validate_auto_generated_fields(cls, v: object, info: ValidationInfo) -> object:
         """验证自动生成的字段"""
         if v is not None:
             # 忽略用户提供的值，使用默认值
@@ -111,7 +111,7 @@ class User(BaseModel):
 class Order(BaseModel):
     """订单模型"""
 
-    model_config = {"extra": "forbid"}
+    model_config = {'extra': 'forbid'}
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """订单唯一标识"""
@@ -134,7 +134,7 @@ class Order(BaseModel):
 
     @field_validator('id', 'timestamp', mode='before')
     @classmethod
-    def _validate_auto_generated_fields(cls, v, info):
+    def _validate_auto_generated_fields(cls, v: object, info: ValidationInfo) -> object:
         """验证自动生成的字段"""
         if v is not None:
             # 忽略用户提供的值，使用默认值
@@ -211,7 +211,7 @@ class Order(BaseModel):
 class Trade(BaseModel):
     """成交记录模型"""
 
-    model_config = {"extra": "forbid"}
+    model_config = {'extra': 'forbid'}
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
     """成交记录唯一标识"""
@@ -230,7 +230,7 @@ class Trade(BaseModel):
 
     @field_validator('id', 'timestamp', mode='before')
     @classmethod
-    def _validate_auto_generated_fields(cls, v, info):
+    def _validate_auto_generated_fields(cls, v: object, info: ValidationInfo) -> object:
         """验证自动生成的字段"""
         if v is not None:
             # 忽略用户提供的值，使用默认值
