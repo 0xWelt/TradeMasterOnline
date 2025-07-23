@@ -14,6 +14,7 @@ class AssetType(StrEnum):
 
     USDT = 'USDT'
     BTC = 'BTC'
+    ETH = 'ETH'
 
 
 class OrderType(StrEnum):

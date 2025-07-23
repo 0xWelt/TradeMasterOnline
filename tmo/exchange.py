@@ -20,13 +20,20 @@ class Exchange:
                 symbol=AssetType.USDT, name='Tether USD', description='美元稳定币'
             ),
             AssetType.BTC: Asset(symbol=AssetType.BTC, name='Bitcoin', description='比特币'),
+            AssetType.ETH: Asset(symbol=AssetType.ETH, name='Ethereum', description='以太坊'),
         }
 
         # 交易对
         self.trading_pairs: dict[str, TradingPair] = {
             'BTC/USDT': TradingPair(
                 base_asset=AssetType.BTC, quote_asset=AssetType.USDT, current_price=50000.0
-            )  # 初始价格
+            ),  # 初始价格
+            'ETH/USDT': TradingPair(
+                base_asset=AssetType.ETH, quote_asset=AssetType.USDT, current_price=3000.0
+            ),  # 初始价格
+            'ETH/BTC': TradingPair(
+                base_asset=AssetType.ETH, quote_asset=AssetType.BTC, current_price=0.06
+            ),  # 初始价格
         }
 
         # 订单簿：按价格排序的订单列表
@@ -34,7 +41,15 @@ class Exchange:
             'BTC/USDT': {
                 OrderType.BUY: [],  # 买单按价格降序排列
                 OrderType.SELL: [],  # 卖单按价格升序排列
-            }
+            },
+            'ETH/USDT': {
+                OrderType.BUY: [],  # 买单按价格降序排列
+                OrderType.SELL: [],  # 卖单按价格升序排列
+            },
+            'ETH/BTC': {
+                OrderType.BUY: [],  # 买单按价格降序排列
+                OrderType.SELL: [],  # 卖单按价格升序排列
+            },
         }
 
         # 成交记录

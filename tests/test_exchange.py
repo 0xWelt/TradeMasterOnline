@@ -29,18 +29,35 @@ class TestExchange:
         # 检查资产
         assert AssetType.USDT in exchange.assets
         assert AssetType.BTC in exchange.assets
+        assert AssetType.ETH in exchange.assets
         assert exchange.assets[AssetType.USDT].name == 'Tether USD'
         assert exchange.assets[AssetType.BTC].name == 'Bitcoin'
+        assert exchange.assets[AssetType.ETH].name == 'Ethereum'
 
         # 检查交易对
         assert 'BTC/USDT' in exchange.trading_pairs
+        assert 'ETH/USDT' in exchange.trading_pairs
+        assert 'ETH/BTC' in exchange.trading_pairs
+
         btc_pair = exchange.trading_pairs['BTC/USDT']
         assert btc_pair.base_asset == AssetType.BTC
         assert btc_pair.quote_asset == AssetType.USDT
         assert btc_pair.current_price == 50000.0
 
+        eth_usdt_pair = exchange.trading_pairs['ETH/USDT']
+        assert eth_usdt_pair.base_asset == AssetType.ETH
+        assert eth_usdt_pair.quote_asset == AssetType.USDT
+        assert eth_usdt_pair.current_price == 3000.0
+
+        eth_btc_pair = exchange.trading_pairs['ETH/BTC']
+        assert eth_btc_pair.base_asset == AssetType.ETH
+        assert eth_btc_pair.quote_asset == AssetType.BTC
+        assert eth_btc_pair.current_price == 0.06
+
         # 检查订单簿
         assert 'BTC/USDT' in exchange.order_books
+        assert 'ETH/USDT' in exchange.order_books
+        assert 'ETH/BTC' in exchange.order_books
         assert OrderType.BUY in exchange.order_books['BTC/USDT']
         assert OrderType.SELL in exchange.order_books['BTC/USDT']
 

@@ -12,6 +12,7 @@ class TestAssetType:
         """测试资产类型值"""
         assert AssetType.USDT.value == 'USDT'
         assert AssetType.BTC.value == 'BTC'
+        assert AssetType.ETH.value == 'ETH'
 
 
 class TestOrderType:
