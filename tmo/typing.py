@@ -34,10 +34,14 @@ class Asset(BaseModel):
 class Portfolio(BaseModel):
     """用户持仓模型"""
 
-    asset: AssetType = Field(description='资产类型')
-    available_balance: float = Field(default=0, ge=0, description='可用余额')
-    locked_balance: float = Field(default=0, ge=0, description='锁定余额')
-    total_balance: float = Field(default=0, ge=0, description='总余额')
+    asset: AssetType
+    """资产类型"""
+    available_balance: float = Field(default=0, ge=0)
+    """可用余额"""
+    locked_balance: float = Field(default=0, ge=0)
+    """锁定余额"""
+    total_balance: float = Field(default=0, ge=0)
+    """总余额"""
 
     @property
     def is_zero(self) -> bool:
@@ -48,11 +52,16 @@ class Portfolio(BaseModel):
 class User(BaseModel):
     """用户模型"""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description='用户唯一标识')
-    username: str = Field(description='用户名')
-    email: str = Field(description='邮箱')
-    created_at: datetime = Field(default_factory=datetime.now, description='创建时间')
-    portfolios: dict[AssetType, Portfolio] = Field(default_factory=dict, description='持仓信息')
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    """用户唯一标识"""
+    username: str
+    """用户名"""
+    email: str
+    """邮箱"""
+    created_at: datetime = Field(default_factory=datetime.now)
+    """创建时间"""
+    portfolios: dict[AssetType, Portfolio] = Field(default_factory=dict)
+    """持仓信息"""
 
     def update_balance(
         self, asset: AssetType, available_change: float, locked_change: float
@@ -81,15 +90,24 @@ class User(BaseModel):
 class Order(BaseModel):
     """订单模型"""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description='订单唯一标识')
-    user: User = Field(description='关联的用户对象')
-    order_type: OrderType = Field(description='订单类型：买入或卖出')
-    asset: AssetType = Field(description='交易资产')
-    quantity: float = Field(gt=0, description='数量')
-    price: float = Field(gt=0, description='价格')
-    timestamp: datetime = Field(default_factory=datetime.now, description='创建时间')
-    filled_quantity: float = Field(default=0, ge=0, description='已成交数量')
-    status: str = Field(default='pending', description='订单状态')
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    """订单唯一标识"""
+    user: User
+    """关联的用户对象"""
+    order_type: OrderType
+    """订单类型：买入或卖出"""
+    asset: AssetType
+    """交易资产"""
+    quantity: float = Field(gt=0)
+    """数量"""
+    price: float = Field(gt=0)
+    """价格"""
+    timestamp: datetime = Field(default_factory=datetime.now)
+    """创建时间"""
+    filled_quantity: float = Field(default=0, ge=0)
+    """已成交数量"""
+    status: str = Field(default='pending')
+    """订单状态"""
 
     @property
     def user_id(self) -> str:
@@ -158,13 +176,20 @@ class Order(BaseModel):
 class Trade(BaseModel):
     """成交记录模型"""
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), description='成交记录唯一标识')
-    buy_order: Order = Field(description='买单对象')
-    sell_order: Order = Field(description='卖单对象')
-    asset: AssetType = Field(description='交易资产')
-    quantity: float = Field(gt=0, description='成交数量')
-    price: float = Field(gt=0, description='成交价格')
-    timestamp: datetime = Field(default_factory=datetime.now, description='成交时间')
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    """成交记录唯一标识"""
+    buy_order: Order
+    """买单对象"""
+    sell_order: Order
+    """卖单对象"""
+    asset: AssetType
+    """交易资产"""
+    quantity: float = Field(gt=0)
+    """成交数量"""
+    price: float = Field(gt=0)
+    """成交价格"""
+    timestamp: datetime = Field(default_factory=datetime.now)
+    """成交时间"""
 
     @property
     def buy_order_id(self) -> str:
@@ -180,10 +205,14 @@ class Trade(BaseModel):
 class TradingPair(BaseModel):
     """交易对模型"""
 
-    base_asset: AssetType = Field(description='基础资产')
-    quote_asset: AssetType = Field(description='计价资产')
-    current_price: float = Field(gt=0, description='当前价格')
-    last_update: datetime = Field(default_factory=datetime.now, description='最后更新时间')
+    base_asset: AssetType
+    """基础资产"""
+    quote_asset: AssetType
+    """计价资产"""
+    current_price: float = Field(gt=0)
+    """当前价格"""
+    last_update: datetime = Field(default_factory=datetime.now)
+    """最后更新时间"""
 
     @property
     def symbol(self) -> str:
