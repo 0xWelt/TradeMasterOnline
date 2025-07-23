@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AssetType(StrEnum):
@@ -72,12 +72,17 @@ class User(BaseModel):
     portfolios: dict[AssetType, Portfolio] = Field(default_factory=dict)
     """持仓信息"""
 
-    def __init__(self, **data):
-        """初始化用户，防止手动设置自动生成的字段"""
-        # 移除用户可能尝试设置的自动生成字段
-        data.pop("id", None)
-        data.pop("created_at", None)
-        super().__init__(**data)
+    @field_validator('id', 'created_at', mode='before')
+    @classmethod
+    def _validate_auto_generated_fields(cls, v, info):
+        """验证自动生成的字段"""
+        if v is not None:
+            # 忽略用户提供的值，使用默认值
+            if info.field_name == 'id':
+                return str(uuid.uuid4())
+            elif info.field_name == 'created_at':
+                return datetime.now()
+        return v
 
     def update_balance(
         self, asset: AssetType, available_change: float, locked_change: float
@@ -127,12 +132,17 @@ class Order(BaseModel):
     status: str = Field(default='pending')
     """订单状态"""
 
-    def __init__(self, **data):
-        """初始化订单，防止手动设置自动生成的字段"""
-        # 移除用户可能尝试设置的自动生成字段
-        data.pop("id", None)
-        data.pop("timestamp", None)
-        super().__init__(**data)
+    @field_validator('id', 'timestamp', mode='before')
+    @classmethod
+    def _validate_auto_generated_fields(cls, v, info):
+        """验证自动生成的字段"""
+        if v is not None:
+            # 忽略用户提供的值，使用默认值
+            if info.field_name == 'id':
+                return str(uuid.uuid4())
+            elif info.field_name == 'timestamp':
+                return datetime.now()
+        return v
 
     @property
     def user_id(self) -> str:
@@ -218,12 +228,17 @@ class Trade(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
     """成交时间"""
 
-    def __init__(self, **data):
-        """初始化成交记录，防止手动设置自动生成的字段"""
-        # 移除用户可能尝试设置的自动生成字段
-        data.pop("id", None)
-        data.pop("timestamp", None)
-        super().__init__(**data)
+    @field_validator('id', 'timestamp', mode='before')
+    @classmethod
+    def _validate_auto_generated_fields(cls, v, info):
+        """验证自动生成的字段"""
+        if v is not None:
+            # 忽略用户提供的值，使用默认值
+            if info.field_name == 'id':
+                return str(uuid.uuid4())
+            elif info.field_name == 'timestamp':
+                return datetime.now()
+        return v
 
     @property
     def buy_order_id(self) -> str:
