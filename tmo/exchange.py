@@ -41,14 +41,20 @@ class Exchange:
             'BTC/USDT': {
                 OrderType.BUY: [],  # 买单按价格降序排列
                 OrderType.SELL: [],  # 卖单按价格升序排列
+                OrderType.MARKET_BUY: [],  # 市价买单
+                OrderType.MARKET_SELL: [],  # 市价卖单
             },
             'ETH/USDT': {
                 OrderType.BUY: [],  # 买单按价格降序排列
                 OrderType.SELL: [],  # 卖单按价格升序排列
+                OrderType.MARKET_BUY: [],  # 市价买单
+                OrderType.MARKET_SELL: [],  # 市价卖单
             },
             'ETH/BTC': {
                 OrderType.BUY: [],  # 买单按价格降序排列
                 OrderType.SELL: [],  # 卖单按价格升序排列
+                OrderType.MARKET_BUY: [],  # 市价买单
+                OrderType.MARKET_SELL: [],  # 市价卖单
             },
         }
 
@@ -137,7 +143,13 @@ class Exchange:
     # ====================
 
     def place_order(
-        self, user: User, order_type: OrderType, asset: AssetType, quantity: float, price: float
+        self,
+        user: User,
+        order_type: OrderType,
+        asset: AssetType,
+        quantity: float = 0.0,
+        price: float = 0.0,
+        amount: float = 0.0,
     ) -> Order:
         """下单并立即执行匹配"""
         # 验证用户合法性
@@ -148,8 +160,20 @@ class Exchange:
         if asset not in self.assets:
             raise ValueError(f'不支持的资产类型: {asset}')
 
+        # 处理单边持仓逻辑：撤销相反方向的订单
+        self._cancel_opposite_orders(user, asset, order_type)
+
+        # 根据订单类型处理参数
+        quantity, price, amount = self._process_order_parameters(
+            order_type, asset, quantity, price, amount
+        )
+
         # 验证用户持仓
-        self._validate_order_balance(user, order_type, asset, quantity, price)
+        self._validate_order_balance(user, order_type, asset, quantity, price, amount)
+
+        # 处理市价订单
+        if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
+            return self._place_market_order(user, order_type, asset, amount)
 
         order = Order(
             user=user,
@@ -157,6 +181,7 @@ class Exchange:
             asset=asset,
             quantity=quantity,
             price=price,
+            amount=amount,
         )
 
         logger.debug(
@@ -177,8 +202,9 @@ class Exchange:
         # 存储订单
         self.orders[order.id] = order
 
-        # 添加到订单簿并立即匹配
-        self._process_new_order(order)
+        # 只将限价订单添加到订单簿，市价订单立即执行
+        if order.order_type in [OrderType.BUY, OrderType.SELL]:
+            self._process_new_order(order)
 
         return order
 
@@ -228,39 +254,129 @@ class Exchange:
     # 内部持仓管理方法
     # ====================
 
+    def _process_order_parameters(
+        self, order_type: OrderType, asset: AssetType, quantity: float, price: float, amount: float
+    ) -> tuple[float, float, float]:
+        """处理订单参数，根据订单类型返回合适的数量和价格
+
+        Args:
+            order_type: 订单类型
+            asset: 资产类型
+            quantity: 数量（对应目标货币，可能为0）
+            price: 价格（限价订单使用，可能为0）
+            amount: 金额（对应计价货币，可能为0）
+
+        Returns:
+            tuple: (处理后的数量, 处理后的价格, 处理后的金额)
+        """
+        # 处理市价订单：只能指定金额，不能设定价格和数量
+        if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
+            if amount <= 0:
+                raise ValueError('市价订单必须指定金额（计价货币）')
+            if quantity > 0:
+                raise ValueError('市价订单不能指定数量')
+            if price > 0:
+                raise ValueError('市价订单不能指定价格')
+
+            # 对于市价订单，数量和价格会在执行时确定
+            return 0.0, 0.0, amount
+
+        # 处理限价订单：可以指定数量或金额，自动计算另一个
+        if order_type in [OrderType.BUY, OrderType.SELL]:
+            # 必须指定价格
+            if price <= 0:
+                raise ValueError('限价订单价格必须大于0')
+
+            # 必须指定数量或金额中的至少一个，但不能同时指定
+            if quantity > 0 and amount > 0:
+                raise ValueError('限价订单只能指定数量或金额，不能同时指定')
+            if quantity <= 0 and amount <= 0:
+                raise ValueError('限价订单必须指定数量或金额')
+
+            # 如果只指定了金额，计算对应数量
+            if amount > 0 and quantity <= 0:
+                quantity = amount / price
+
+            # 如果只指定了数量，计算对应金额
+            if quantity > 0 and amount <= 0:
+                amount = quantity * price
+
+            return quantity, price, amount
+
+        raise ValueError(f'不支持的订单类型: {order_type}')
+
     def _validate_order_balance(
-        self, user: User, order_type: OrderType, asset: AssetType, quantity: float, price: float
+        self,
+        user: User,
+        order_type: OrderType,
+        asset: AssetType,
+        quantity: float,
+        price: float = 0.0,
+        amount: float = 0.0,
     ) -> None:
         """验证订单余额"""
-        if order_type == OrderType.BUY:
-            required_usdt = quantity * price
+        if order_type in [OrderType.BUY, OrderType.MARKET_BUY]:
+            # 对于市价买单，直接使用指定的金额
+            if order_type == OrderType.MARKET_BUY:
+                required_usdt = amount
+            else:
+                # 对于限价买单，使用计算后的金额
+                required_usdt = quantity * price
+
             usdt_portfolio = user.portfolios[AssetType.USDT]
             if usdt_portfolio.available_balance < required_usdt:
                 raise ValueError(
                     f'USDT余额不足，需要 {required_usdt:.2f} USDT，可用 {usdt_portfolio.available_balance:.2f} USDT'
                 )
-        else:
-            btc_portfolio = user.portfolios[asset]
-            if btc_portfolio.available_balance < quantity:
+        else:  # SELL or MARKET_SELL
+            if order_type == OrderType.MARKET_SELL:
+                # 对于市价卖单，需要先计算数量（基于金额和当前价格）
+                current_price = self.get_market_price(asset)
+                required_asset_quantity = amount / current_price
+            else:
+                # 对于限价卖单，使用指定的数量
+                required_asset_quantity = quantity
+
+            asset_portfolio = user.portfolios[asset]
+            if asset_portfolio.available_balance < required_asset_quantity:
                 raise ValueError(
-                    f'{asset.value}余额不足，需要 {quantity} {asset.value}，可用 {btc_portfolio.available_balance} {asset.value}'
+                    f'{asset.value}余额不足，需要 {required_asset_quantity} {asset.value}，可用 {asset_portfolio.available_balance} {asset.value}'
                 )
 
     def _lock_balance_for_order(
-        self, user: User, order_type: OrderType, asset: AssetType, quantity: float, price: float
+        self,
+        user: User,
+        order_type: OrderType,
+        asset: AssetType,
+        quantity: float,
+        price: float,
+        amount: float,
     ) -> None:
         """为订单锁定余额"""
-        if order_type == OrderType.BUY:
+        if order_type in [OrderType.BUY, OrderType.MARKET_BUY]:
             # 买单锁定USDT
-            required_usdt = quantity * price
+            if order_type == OrderType.MARKET_BUY:
+                # 市价买单直接锁定指定金额
+                required_usdt = amount
+            else:
+                # 限价买单使用计算后的金额
+                required_usdt = quantity * price
             usdt_portfolio = user.portfolios[AssetType.USDT]
             usdt_portfolio.available_balance -= required_usdt
             usdt_portfolio.locked_balance += required_usdt
-        else:
-            # 卖单锁定BTC
-            btc_portfolio = user.portfolios[asset]
-            btc_portfolio.available_balance -= quantity
-            btc_portfolio.locked_balance += quantity
+        else:  # SELL or MARKET_SELL
+            if order_type == OrderType.MARKET_SELL:
+                # 市价卖单：根据金额计算需要锁定的资产数量
+                current_price = self.get_market_price(asset)
+                required_asset_quantity = amount / current_price
+            else:
+                # 限价卖单：直接锁定指定数量
+                required_asset_quantity = quantity
+
+            # 卖单锁定资产
+            asset_portfolio = user.portfolios[asset]
+            asset_portfolio.available_balance -= required_asset_quantity
+            asset_portfolio.locked_balance += required_asset_quantity
 
     def _unlock_balance_for_order(self, user: User, order: Order) -> None:
         """释放订单锁定的余额"""
@@ -418,6 +534,214 @@ class Exchange:
     # 内部实现 - 私有方法
     # ====================
 
+    def _place_market_order(
+        self, user: User, order_type: OrderType, asset: AssetType, amount: float
+    ) -> Order:
+        """处理市价订单
+
+        Args:
+            user: 用户对象
+            order_type: 订单类型（市价买入或卖出）
+            asset: 资产类型
+            amount: 计价货币金额（USDT），用于市价买入时表示要花费的USDT金额，
+                   用于市价卖出时表示要获得的USDT金额（通过卖出资产获得）
+        """
+        pair_symbol = f'{asset.value}/USDT'
+        if pair_symbol not in self.order_books:
+            raise ValueError(f'不存在的交易对: {pair_symbol}')
+
+        # 根据订单类型计算交易数量
+        current_price = self.get_market_price(asset)
+        if order_type == OrderType.MARKET_BUY:
+            # 市价买入：使用金额计算可购买的资产数量
+            quantity = amount / current_price
+        else:  # MARKET_SELL
+            # 市价卖出：使用金额计算需要卖出的资产数量
+            quantity = amount / current_price
+
+        # 创建市价订单
+        order = Order(
+            user=user,
+            order_type=order_type,
+            asset=asset,
+            quantity=quantity,
+            price=0.0,  # 市价订单价格为0
+            amount=amount,  # 存储原始金额
+        )
+
+        # 冻结相应资产
+        if order_type == OrderType.MARKET_BUY:
+            # 市价买单：冻结指定的USDT金额
+            user.update_balance(
+                asset=AssetType.USDT, available_change=-amount, locked_change=amount
+            )
+        else:  # MARKET_SELL
+            # 市价卖单：根据计算出的数量冻结相应资产
+            user.update_balance(asset=asset, available_change=-quantity, locked_change=quantity)
+
+        # 存储订单
+        self.orders[order.id] = order
+
+        # 立即执行市价订单匹配
+        self._execute_market_order(order)
+
+        return order
+
+    def _get_max_possible_buy_price(self, asset: AssetType) -> float:
+        """获取市价买单的最大可能价格"""
+        pair_symbol = f'{asset.value}/USDT'
+        if pair_symbol not in self.order_books:
+            return self.trading_pairs[pair_symbol].current_price
+
+        sell_orders = self.order_books[pair_symbol][OrderType.SELL]
+        if sell_orders:
+            return sell_orders[-1].price * 1.1  # 使用最高卖价的110%作为上限
+        return self.trading_pairs[pair_symbol].current_price * 1.1
+
+    def _cancel_opposite_orders(
+        self, user: User, asset: AssetType, new_order_type: OrderType
+    ) -> None:
+        """撤销用户当前资产的相反方向订单"""
+        # 确定相反方向的订单类型（只处理限价订单，因为市价订单会立即执行）
+        opposite_types = []
+        if new_order_type == OrderType.BUY:
+            opposite_types = [OrderType.SELL]
+        elif new_order_type == OrderType.SELL:
+            opposite_types = [OrderType.BUY]
+        elif new_order_type == OrderType.MARKET_BUY:
+            opposite_types = [OrderType.SELL]
+        elif new_order_type == OrderType.MARKET_SELL:
+            opposite_types = [OrderType.BUY]
+
+        # 获取用户的相反方向订单（只处理限价订单）
+        opposite_orders = [
+            order
+            for order in self.orders.values()
+            if order.user.id == user.id
+            and order.asset == asset
+            and order.order_type in opposite_types
+            and order.status in ['pending', 'partially_filled']
+        ]
+
+        # 撤销这些订单
+        for order in opposite_orders:
+            try:
+                self.cancel_order(user, order.id)
+                logger.debug(
+                    f'用户 {user.username} 撤销相反方向订单: {order.order_type.value} {order.quantity} {asset.value}'
+                )
+            except ValueError as e:
+                logger.warning(f'撤销订单失败: {e}')
+
+    def _execute_market_order(self, order: Order) -> None:
+        """执行市价订单"""
+        pair_symbol = f'{order.asset.value}/USDT'
+        if pair_symbol not in self.order_books:
+            return
+
+        remaining_quantity = order.quantity
+        total_cost = 0.0
+        trades_executed = []
+
+        if order.order_type == OrderType.MARKET_BUY:
+            # 市价买单：从卖单簿中按价格从低到高成交
+            sell_orders = self.order_books[pair_symbol][OrderType.SELL]
+            for sell_order in sell_orders[:]:
+                if remaining_quantity <= 0:
+                    break
+
+                available_quantity = sell_order.remaining_quantity
+                trade_quantity = min(remaining_quantity, available_quantity)
+                trade_price = sell_order.price
+
+                # 执行交易
+                trade = self._execute_trade_for_market_order(
+                    order, sell_order, trade_quantity, trade_price
+                )
+                trades_executed.append(trade)
+                total_cost += trade_quantity * trade_price
+                remaining_quantity -= trade_quantity
+
+        elif order.order_type == OrderType.MARKET_SELL:
+            # 市价卖单：从买单簿中按价格从高到低成交
+            buy_orders = self.order_books[pair_symbol][OrderType.BUY]
+            for buy_order in buy_orders[:]:
+                if remaining_quantity <= 0:
+                    break
+
+                available_quantity = buy_order.remaining_quantity
+                trade_quantity = min(remaining_quantity, available_quantity)
+                trade_price = buy_order.price
+
+                # 执行交易
+                trade = self._execute_trade_for_market_order(
+                    buy_order, order, trade_quantity, trade_price
+                )
+                trades_executed.append(trade)
+                total_cost += trade_quantity * trade_price
+                remaining_quantity -= trade_quantity
+
+        # 更新市价订单状态
+        order.filled_quantity = order.quantity - remaining_quantity
+        if remaining_quantity > 0:
+            order.status = 'partially_filled'
+        else:
+            order.status = 'filled'
+
+        # 释放多余的冻结资金
+        if order.order_type == OrderType.MARKET_BUY:
+            actual_required = total_cost
+            original_amount = order.amount
+            if original_amount > 0:
+                excess = original_amount - actual_required
+                if excess > 0:
+                    user = order.user
+                    user.update_balance(
+                        asset=AssetType.USDT, available_change=excess, locked_change=-excess
+                    )
+
+        logger.debug(
+            f'市价订单执行: {order.order_type.value} {order.filled_quantity}/{order.quantity} {order.asset.value}'
+        )
+
+    def _execute_trade_for_market_order(
+        self, buy_order: Order, sell_order: Order, quantity: float, price: float
+    ) -> Trade:
+        """为市价订单执行交易"""
+        # 更新订单成交数量
+        buy_order.filled_quantity += quantity
+        sell_order.filled_quantity += quantity
+
+        # 创建成交记录
+        trade = Trade(
+            buy_order=buy_order,
+            sell_order=sell_order,
+            asset=buy_order.asset,
+            quantity=quantity,
+            price=price,
+        )
+
+        self.trades.append(trade)
+
+        # 更新订单状态
+        self._update_order_status(buy_order)
+        self._update_order_status(sell_order)
+
+        # 更新交易对价格
+        pair_symbol = f'{buy_order.asset.value}/USDT'
+        self._update_trading_pair_price(pair_symbol, price)
+
+        # 更新用户持仓
+        buyer = self.get_user(buy_order.user_id)
+        seller = self.get_user(sell_order.user_id)
+        if buyer and seller:
+            self._update_balances_after_trade(buyer, seller, trade)
+
+        # 清理已完成的订单
+        self._cleanup_filled_orders(pair_symbol)
+
+        return trade
+
     def _process_new_order(self, order: Order) -> None:
         """处理新订单：添加到订单簿并执行匹配"""
         pair_symbol = f'{order.asset.value}/USDT'
@@ -553,10 +877,16 @@ class Exchange:
 
     def _cleanup_filled_orders(self, pair_symbol: str) -> None:
         """清理已完成的订单"""
-        for order_type in [OrderType.BUY, OrderType.SELL]:
-            order_list = self.order_books[pair_symbol][order_type]
-            # 移除已完成的订单
-            order_list[:] = [order for order in order_list if not order.is_filled]
+        for order_type in [
+            OrderType.BUY,
+            OrderType.SELL,
+            OrderType.MARKET_BUY,
+            OrderType.MARKET_SELL,
+        ]:
+            if order_type in self.order_books[pair_symbol]:
+                order_list = self.order_books[pair_symbol][order_type]
+                # 移除已完成的订单
+                order_list[:] = [order for order in order_list if not order.is_filled]
 
     def _get_recent_trades_for_asset(self, asset: AssetType, limit: int) -> list[Trade]:
         """获取特定资产的最近成交记录"""

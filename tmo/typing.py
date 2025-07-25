@@ -22,6 +22,8 @@ class OrderType(StrEnum):
 
     BUY = 'buy'
     SELL = 'sell'
+    MARKET_BUY = 'market_buy'
+    MARKET_SELL = 'market_sell'
 
 
 class Asset(BaseModel):
@@ -123,9 +125,11 @@ class Order(BaseModel):
     asset: AssetType = Field(frozen=True)
     """交易资产"""
     quantity: float = Field(gt=0, frozen=True)
-    """数量"""
-    price: float = Field(gt=0, frozen=True)
+    """数量（对应目标货币）"""
+    price: float = Field(ge=0, frozen=True)
     """价格"""
+    amount: float = Field(default=0, ge=0, frozen=True)
+    """金额（对应计价货币）"""
     timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
     """创建时间"""
     filled_quantity: float = Field(default=0, ge=0)
