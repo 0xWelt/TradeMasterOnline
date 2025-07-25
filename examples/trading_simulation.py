@@ -8,7 +8,7 @@ import random
 
 import plotly.graph_objects as go
 
-from tmo import AssetType, Exchange, OrderType
+from tmo import AssetType, Exchange, OrderType, TradingPairType
 from tmo.typing import User
 
 
@@ -19,7 +19,7 @@ class TradingSimulator:
         self,
         user_count: int = 3,
         trading_rounds: int = 1000,
-        trading_pairs: list[str] | None = None,
+        trading_pairs: list[TradingPairType] | None = None,
         seed: int | None = None,
     ):
         """初始化模拟器
@@ -27,7 +27,7 @@ class TradingSimulator:
         Args:
             user_count: 用户数量，默认3个
             trading_rounds: 交易轮次，默认150轮
-            trading_pairs: 交易对列表，默认为['BTC/USDT', 'ETH/USDT', 'ETH/BTC']
+            trading_pairs: 交易对列表，默认为所有支持的交易对
             seed: 随机种子，如果为None则使用系统随机源
         """
         if seed is not None:
@@ -35,7 +35,11 @@ class TradingSimulator:
 
         self.user_count = user_count
         self.trading_rounds = trading_rounds
-        self.trading_pairs = trading_pairs or ['BTC/USDT', 'ETH/USDT', 'ETH/BTC']
+        self.trading_pairs = (
+            [pair.value for pair in trading_pairs]
+            if trading_pairs
+            else [pair.value for pair in TradingPairType]
+        )
 
         self.exchange = Exchange()
         self.users: list[User] = []
@@ -578,7 +582,9 @@ class TradingSimulator:
 def main():
     """主函数"""
     simulator = TradingSimulator(
-        user_count=5, trading_rounds=5000, trading_pairs=['BTC/USDT', 'ETH/USDT']
+        user_count=5,
+        trading_rounds=5000,
+        trading_pairs=[TradingPairType.BTC_USDT, TradingPairType.ETH_USDT],
     )
 
     try:

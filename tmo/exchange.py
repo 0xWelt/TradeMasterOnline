@@ -6,7 +6,8 @@ from datetime import datetime
 
 from loguru import logger
 
-from .typing import Asset, AssetType, Order, OrderType, Portfolio, Trade, TradingPair, User
+from .constants import AssetType, OrderType, TradingPairType
+from .typing import Asset, Order, Portfolio, Trade, TradingPair, User
 
 
 class Exchange:
@@ -23,39 +24,25 @@ class Exchange:
             AssetType.ETH: Asset(symbol=AssetType.ETH, name='Ethereum', description='以太坊'),
         }
 
-        # 交易对
+        # 交易对 - 使用TradingPairType枚举自动生成价格
         self.trading_pairs: dict[str, TradingPair] = {
-            'BTC/USDT': TradingPair(
-                base_asset=AssetType.BTC, quote_asset=AssetType.USDT, current_price=50000.0
-            ),  # 初始价格
-            'ETH/USDT': TradingPair(
-                base_asset=AssetType.ETH, quote_asset=AssetType.USDT, current_price=3000.0
-            ),  # 初始价格
-            'ETH/BTC': TradingPair(
-                base_asset=AssetType.ETH, quote_asset=AssetType.BTC, current_price=0.06
-            ),  # 初始价格
+            pair.value: TradingPair(
+                base_asset=pair.base_asset,
+                quote_asset=pair.quote_asset,
+                current_price=pair.initial_price,
+            )
+            for pair in TradingPairType
         }
 
         # 订单簿：按价格排序的订单列表
         self.order_books: dict[str, dict[OrderType, list[Order]]] = {
-            'BTC/USDT': {
+            pair.value: {
                 OrderType.BUY: [],  # 买单按价格降序排列
                 OrderType.SELL: [],  # 卖单按价格升序排列
                 OrderType.MARKET_BUY: [],  # 市价买单
                 OrderType.MARKET_SELL: [],  # 市价卖单
-            },
-            'ETH/USDT': {
-                OrderType.BUY: [],  # 买单按价格降序排列
-                OrderType.SELL: [],  # 卖单按价格升序排列
-                OrderType.MARKET_BUY: [],  # 市价买单
-                OrderType.MARKET_SELL: [],  # 市价卖单
-            },
-            'ETH/BTC': {
-                OrderType.BUY: [],  # 买单按价格降序排列
-                OrderType.SELL: [],  # 卖单按价格升序排列
-                OrderType.MARKET_BUY: [],  # 市价买单
-                OrderType.MARKET_SELL: [],  # 市价卖单
-            },
+            }
+            for pair in TradingPairType
         }
 
         # 成交记录

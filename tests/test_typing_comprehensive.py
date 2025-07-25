@@ -120,13 +120,6 @@ class TestPortfolioComprehensive:
         assert portfolio.available_balance == 1.5
         assert portfolio.locked_balance == 0.5
         assert portfolio.total_balance == 2.0
-        assert not portfolio.is_zero
-
-    def test_portfolio_zero_balance(self):
-        """测试零持仓"""
-        portfolio = Portfolio(asset=AssetType.BTC, available_balance=0, locked_balance=0)
-
-        assert portfolio.is_zero
 
     def test_portfolio_negative_validation(self):
         """测试负值验证"""

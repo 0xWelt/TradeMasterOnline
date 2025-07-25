@@ -2,6 +2,7 @@
 
 import pytest
 
+from tmo.constants import TradingPairType
 from tmo.exchange import Exchange
 from tmo.typing import AssetType, OrderType, User
 
@@ -35,31 +36,31 @@ class TestExchange:
         assert exchange.assets[AssetType.ETH].name == 'Ethereum'
 
         # 检查交易对
-        assert 'BTC/USDT' in exchange.trading_pairs
-        assert 'ETH/USDT' in exchange.trading_pairs
-        assert 'ETH/BTC' in exchange.trading_pairs
+        assert TradingPairType.BTC_USDT.value in exchange.trading_pairs
+        assert TradingPairType.ETH_USDT.value in exchange.trading_pairs
+        assert TradingPairType.ETH_BTC.value in exchange.trading_pairs
 
-        btc_pair = exchange.trading_pairs['BTC/USDT']
+        btc_pair = exchange.trading_pairs[TradingPairType.BTC_USDT.value]
         assert btc_pair.base_asset == AssetType.BTC
         assert btc_pair.quote_asset == AssetType.USDT
         assert btc_pair.current_price == 50000.0
 
-        eth_usdt_pair = exchange.trading_pairs['ETH/USDT']
+        eth_usdt_pair = exchange.trading_pairs[TradingPairType.ETH_USDT.value]
         assert eth_usdt_pair.base_asset == AssetType.ETH
         assert eth_usdt_pair.quote_asset == AssetType.USDT
         assert eth_usdt_pair.current_price == 3000.0
 
-        eth_btc_pair = exchange.trading_pairs['ETH/BTC']
+        eth_btc_pair = exchange.trading_pairs[TradingPairType.ETH_BTC.value]
         assert eth_btc_pair.base_asset == AssetType.ETH
         assert eth_btc_pair.quote_asset == AssetType.BTC
         assert eth_btc_pair.current_price == 0.06
 
         # 检查订单簿
-        assert 'BTC/USDT' in exchange.order_books
-        assert 'ETH/USDT' in exchange.order_books
-        assert 'ETH/BTC' in exchange.order_books
-        assert OrderType.BUY in exchange.order_books['BTC/USDT']
-        assert OrderType.SELL in exchange.order_books['BTC/USDT']
+        assert TradingPairType.BTC_USDT.value in exchange.order_books
+        assert TradingPairType.ETH_USDT.value in exchange.order_books
+        assert TradingPairType.ETH_BTC.value in exchange.order_books
+        assert OrderType.BUY in exchange.order_books[TradingPairType.BTC_USDT.value]
+        assert OrderType.SELL in exchange.order_books[TradingPairType.BTC_USDT.value]
 
     def test_create_user(self, exchange: Exchange) -> None:
         """测试创建用户"""
@@ -100,7 +101,7 @@ class TestExchange:
         assert order.status == 'pending'
 
         # 检查订单是否在订单簿中
-        assert order in exchange.order_books['BTC/USDT'][OrderType.BUY]
+        assert order in exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.BUY]
         assert order.id in exchange.orders
 
     def test_place_sell_order(self, exchange: Exchange, bob: Exchange) -> None:
@@ -123,7 +124,7 @@ class TestExchange:
         assert order.status == 'pending'
 
         # 检查订单是否在订单簿中
-        assert order in exchange.order_books['BTC/USDT'][OrderType.SELL]
+        assert order in exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.SELL]
         assert order.id in exchange.orders
 
     def test_order_matching_same_price(
@@ -238,7 +239,7 @@ class TestExchange:
         )
 
         # 检查买单排序（价格降序）
-        buy_orders = exchange.order_books['BTC/USDT'][OrderType.BUY]
+        buy_orders = exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.BUY]
         assert buy_orders[0].price == 50100.0  # 最高价在前
         assert buy_orders[1].price == 50000.0
 
@@ -264,7 +265,7 @@ class TestExchange:
         assert cancelled_order.status == 'cancelled'
 
         # 检查订单是否从订单簿中移除
-        assert order not in exchange.order_books['BTC/USDT'][OrderType.BUY]
+        assert order not in exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.BUY]
 
     def test_cancel_other_user_order(
         self, exchange: Exchange, alice: Exchange, bob: Exchange
@@ -431,7 +432,7 @@ class TestExchange:
         assert pair.base_asset == AssetType.BTC
         assert pair.quote_asset == AssetType.USDT
         assert pair.current_price == 50000.0
-        assert pair.symbol == 'BTC/USDT'
+        assert pair.symbol == TradingPairType.BTC_USDT.value
 
     def test_get_recent_trades(self, exchange: Exchange, alice: Exchange, bob: Exchange) -> None:
         """测试获取最近成交记录"""
@@ -634,7 +635,7 @@ class TestExchange:
         )
 
         # 检查订单按时间排序（先下的在前）
-        buy_orders = exchange.order_books['BTC/USDT'][OrderType.BUY]
+        buy_orders = exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.BUY]
         assert len(buy_orders) == 2
         assert buy_orders[0].timestamp <= buy_orders[1].timestamp
 
@@ -744,7 +745,7 @@ class TestExchange:
     def test_get_market_summary_empty(self, exchange: Exchange) -> None:
         """测试获取空市场摘要"""
         summary = exchange.get_market_summary(AssetType.BTC)
-        assert summary['symbol'] == 'BTC/USDT'
+        assert summary['symbol'] == TradingPairType.BTC_USDT.value
         assert summary['current_price'] == 50000.0
         assert summary['total_bids'] == 0
         assert summary['total_asks'] == 0

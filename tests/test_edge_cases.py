@@ -2,6 +2,7 @@
 
 import pytest
 
+from tmo.constants import TradingPairType
 from tmo.exchange import Exchange
 from tmo.typing import AssetType, OrderType
 
@@ -60,7 +61,7 @@ class TestExchangeEdgeCases:
         )
 
         summary = exchange.get_market_summary(AssetType.BTC)
-        assert summary['symbol'] == 'BTC/USDT'
+        assert summary['symbol'] == TradingPairType.BTC_USDT.value
         assert summary['current_price'] == 50000.0
         assert summary['total_bids'] == 1
         assert summary['total_asks'] == 0
@@ -100,6 +101,6 @@ class TestExchangeEdgeCases:
         """测试获取交易对信息"""
         pair = exchange.get_trading_pair(AssetType.BTC)
         assert pair is not None
-        assert pair.symbol == 'BTC/USDT'
+        assert pair.symbol == TradingPairType.BTC_USDT.value
         assert pair.base_asset == AssetType.BTC
         assert pair.quote_asset == AssetType.USDT

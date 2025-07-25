@@ -4,26 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-
-class AssetType(StrEnum):
-    """资产类型"""
-
-    USDT = 'USDT'
-    BTC = 'BTC'
-    ETH = 'ETH'
-
-
-class OrderType(StrEnum):
-    """订单类型"""
-
-    BUY = 'buy'
-    SELL = 'sell'
-    MARKET_BUY = 'market_buy'
-    MARKET_SELL = 'market_sell'
+from .constants import AssetType, OrderType
 
 
 class Asset(BaseModel):
@@ -52,11 +36,6 @@ class Portfolio(BaseModel):
     """锁定余额"""
     total_balance: float = Field(default=0, ge=0)
     """总余额"""
-
-    @property
-    def is_zero(self) -> bool:
-        """是否为零持仓"""
-        return self.total_balance == 0
 
 
 class User(BaseModel):

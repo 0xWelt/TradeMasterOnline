@@ -2,6 +2,7 @@
 
 import pytest
 
+from tmo.constants import TradingPairType
 from tmo.typing import Asset, AssetType, Order, OrderType, Portfolio, Trade, TradingPair, User
 
 
@@ -187,7 +188,7 @@ class TestTradingPair:
         assert pair.base_asset == AssetType.BTC
         assert pair.quote_asset == AssetType.USDT
         assert pair.current_price == 50000.0
-        assert pair.symbol == 'BTC/USDT'
+        assert pair.symbol == TradingPairType.BTC_USDT.value
 
     def test_symbol_property(self):
         """测试交易对符号属性"""
@@ -195,7 +196,7 @@ class TestTradingPair:
             base_asset=AssetType.BTC, quote_asset=AssetType.USDT, current_price=50000.0
         )
 
-        assert pair.symbol == 'BTC/USDT'
+        assert pair.symbol == TradingPairType.BTC_USDT.value
 
 
 class TestUser:
@@ -252,13 +253,6 @@ class TestPortfolio:
         assert portfolio.available_balance == 1.5
         assert portfolio.locked_balance == 0.5
         assert portfolio.total_balance == 2.0
-        assert not portfolio.is_zero
-
-    def test_portfolio_zero_balance(self):
-        """测试零持仓"""
-        portfolio = Portfolio(asset=AssetType.BTC, available_balance=0, locked_balance=0)
-
-        assert portfolio.is_zero
 
     def test_portfolio_negative_validation(self):
         """测试负值验证"""

@@ -3,6 +3,7 @@
 import pytest
 
 from tmo import AssetType, Exchange, OrderType
+from tmo.constants import TradingPairType
 
 
 class TestMarketOrders:
@@ -89,8 +90,8 @@ class TestMarketOrders:
     def test_market_order_with_no_matching_orders(self):
         """测试无匹配订单的市价订单"""
         # 清空订单簿
-        self.exchange.order_books['BTC/USDT'][OrderType.BUY].clear()
-        self.exchange.order_books['BTC/USDT'][OrderType.SELL].clear()
+        self.exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.BUY].clear()
+        self.exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.SELL].clear()
 
         # 下市价买单，应该部分成交或保持未成交状态
         order = self.exchange.place_order(
