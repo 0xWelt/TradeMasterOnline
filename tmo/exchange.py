@@ -1,4 +1,8 @@
-"""模拟交易所核心逻辑"""
+"""模拟交易所核心逻辑。
+
+该模块实现了完整的交易所功能，包括订单管理、交易撮合、资产管理和市场数据提供。
+支持限价订单、市价订单，提供实时价格更新和用户余额管理。
+"""
 
 from __future__ import annotations
 
@@ -11,10 +15,29 @@ from .typing import Asset, Order, Portfolio, TradeSettlement, TradingPair, User
 
 
 class Exchange:
-    """模拟交易所 - 提供完整的交易撮合系统"""
+    """模拟交易所 - 提供完整的交易撮合系统。
+
+    实现了一个功能完整的数字资产交易所，支持多种交易对和订单类型。
+    提供订单管理、交易撮合、资产管理和市场数据查询等功能。
+
+    Attributes:
+        assets: 支持的资产字典，包含所有可交易资产的详细信息。
+        trading_pairs: 交易对字典，包含所有可交易交易对的当前价格和基本信息。
+        order_books: 订单簿，按交易对和订单类型组织所有待成交订单。
+        trade_settlements: 交易结算记录列表，保存所有历史成交信息。
+        orders: 订单索引字典，通过订单ID快速查找订单。
+        users: 用户字典，保存所有注册用户的信息。
+    """
 
     def __init__(self):
-        """初始化交易所"""
+        """初始化交易所。
+
+        设置交易所的初始状态，包括：
+        - 创建默认资产（USDT、BTC、ETH）
+        - 初始化交易对和初始价格
+        - 设置空的订单簿和交易记录
+        - 初始化用户管理
+        """
         # 支持的资产
         self.assets: dict[AssetType, Asset] = {
             AssetType.USDT: Asset(
@@ -59,7 +82,26 @@ class Exchange:
     # ====================
 
     def create_user(self, username: str, email: str) -> User:
-        """创建新用户"""
+        """创建新用户。
+
+        创建一个新的交易所用户，初始化用户的资产持仓信息。
+        每个新用户初始获得1000 USDT的余额，其他资产余额为0。
+
+        Args:
+            username: 用户名，必须唯一。
+            email: 用户邮箱地址。
+
+        Returns:
+            User: 新创建的用户对象。
+
+        Raises:
+            ValueError: 如果用户名已存在。
+
+        Example:
+            >>> exchange = Exchange()
+            >>> user = exchange.create_user("alice", "alice@example.com")
+            >>> print(user.username)  # 输出: alice
+        """
         # 检查用户名是否已存在
         for existing_user in self.users.values():
             if existing_user.username == username:
@@ -81,19 +123,53 @@ class Exchange:
         return user
 
     def get_user(self, user_id: str) -> User | None:
-        """获取用户信息"""
+        """获取用户信息。
+
+        根据用户ID查找并返回对应的用户对象。
+
+        Args:
+            user_id: 用户的唯一标识符。
+
+        Returns:
+            User | None: 找到的用户对象，如果用户不存在则返回None。
+        """
         return self.users.get(user_id)
 
     def list_users(self) -> list[User]:
-        """获取所有用户列表"""
+        """获取所有用户列表。
+
+        返回系统中所有注册用户的列表。
+
+        Returns:
+            list[User]: 包含所有用户对象的列表。
+        """
         return list(self.users.values())
 
     def get_user_portfolio(self, user: User, asset: AssetType) -> Portfolio:
-        """获取用户特定资产的持仓"""
+        """获取用户特定资产的持仓。
+
+        返回用户在指定资产上的持仓信息，包括可用余额、锁定余额和总余额。
+
+        Args:
+            user: 要查询的用户对象。
+            asset: 要查询的资产类型。
+
+        Returns:
+            Portfolio: 用户在指定资产上的持仓信息。
+        """
         return user.portfolios[asset]
 
     def get_user_portfolios(self, user: User) -> dict[AssetType, Portfolio]:
-        """获取用户所有持仓"""
+        """获取用户所有持仓。
+
+        返回用户在所有资产上的持仓信息字典。
+
+        Args:
+            user: 要查询的用户对象。
+
+        Returns:
+            dict[AssetType, Portfolio]: 键为资产类型，值为对应持仓信息的字典。
+        """
         return user.portfolios
 
     # ====================
@@ -101,7 +177,18 @@ class Exchange:
     # ====================
 
     def deposit(self, user: User, asset: AssetType, amount: float) -> None:
-        """用户充值"""
+        """用户充值。
+
+        为用户指定资产增加可用余额，模拟用户充值资产到交易所。
+
+        Args:
+            user: 要充值的用户对象。
+            asset: 要充值的资产类型。
+            amount: 充值金额，必须大于0。
+
+        Raises:
+            ValueError: 如果充值金额小于等于0。
+        """
         if amount <= 0:
             raise ValueError('充值金额必须大于0')
 
@@ -112,7 +199,18 @@ class Exchange:
         logger.debug(f'用户 {user.username} 充值 {amount} {asset.value}')
 
     def withdraw(self, user: User, asset: AssetType, amount: float) -> None:
-        """用户提现"""
+        """用户提现。
+
+        从用户指定资产的可用余额中扣除相应金额，模拟用户从交易所提现。
+
+        Args:
+            user: 要提现的用户对象。
+            asset: 要提现的资产类型。
+            amount: 提现金额，必须大于0。
+
+        Raises:
+            ValueError: 如果提现金额小于等于0，或用户可用余额不足。
+        """
         if amount <= 0:
             raise ValueError('提现金额必须大于0')
 
