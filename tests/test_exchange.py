@@ -88,14 +88,14 @@ class TestExchange:
         order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.01,
             price=500.0,
         )
 
         assert order.user_id == alice.id
         assert order.order_type == OrderType.BUY
-        assert order.asset == AssetType.BTC
+        assert order.trading_pair == TradingPairType.BTC_USDT
         assert order.quantity == 0.01
         assert order.price == 500.0
         assert order.status == 'pending'
@@ -111,14 +111,14 @@ class TestExchange:
         order = exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=500.0,
         )
 
         assert order.user_id == bob.id
         assert order.order_type == OrderType.SELL
-        assert order.asset == AssetType.BTC
+        assert order.trading_pair == TradingPairType.BTC_USDT
         assert order.quantity == 0.5
         assert order.price == 500.0
         assert order.status == 'pending'
@@ -140,7 +140,7 @@ class TestExchange:
         buy_order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -149,13 +149,13 @@ class TestExchange:
         sell_order = exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
 
         # 检查成交记录
-        trades = exchange.get_recent_trades(AssetType.BTC)
+        trades = exchange.get_recent_trades(TradingPairType.BTC_USDT)
         assert len(trades) == 1
 
         trade = trades[0]
@@ -189,7 +189,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50100.0,
         )
@@ -198,13 +198,13 @@ class TestExchange:
         exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
 
         # 检查成交记录
-        trades = exchange.get_recent_trades(AssetType.BTC)
+        trades = exchange.get_recent_trades(TradingPairType.BTC_USDT)
         assert len(trades) == 1
 
         trade = trades[0]
@@ -212,7 +212,7 @@ class TestExchange:
         assert trade.price == 50000.0  # 按卖单价格成交
 
         # 检查价格更新
-        btc_pair = exchange.get_trading_pair(AssetType.BTC)
+        btc_pair = exchange.get_trading_pair(TradingPairType.BTC_USDT)
         assert btc_pair.current_price == 50000.0
 
     def test_order_book_ordering(self, exchange: Exchange, alice: Exchange, bob: Exchange) -> None:
@@ -225,7 +225,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -233,7 +233,7 @@ class TestExchange:
         exchange.place_order(
             user=bob,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50100.0,
         )
@@ -251,7 +251,7 @@ class TestExchange:
         order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -277,7 +277,7 @@ class TestExchange:
         order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.01,
             price=500.0,
         )
@@ -299,7 +299,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -307,7 +307,7 @@ class TestExchange:
         sell_order = exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -326,14 +326,14 @@ class TestExchange:
         alice_order1 = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.01,
             price=500.0,
         )
         alice_order2 = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.02,
             price=490.0,
         )
@@ -342,7 +342,7 @@ class TestExchange:
         bob_order = exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.1,
             price=510.0,
         )
@@ -369,7 +369,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
@@ -377,7 +377,7 @@ class TestExchange:
         exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
@@ -390,8 +390,8 @@ class TestExchange:
         bob_trades = exchange.get_user_trades(bob)
         assert len(bob_trades) == 1
 
-        # 验证成交记录相同
-        assert alice_trades[0].id == bob_trades[0].id
+        # 验证成交记录相同（通过比较时间戳）
+        assert alice_trades[0].timestamp == bob_trades[0].timestamp
 
     def test_get_order_book(self, exchange: Exchange, alice: Exchange, bob: Exchange) -> None:
         """测试获取订单簿"""
@@ -403,7 +403,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.01,
             price=500.0,
         )
@@ -411,13 +411,13 @@ class TestExchange:
         exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.1,
             price=510.0,
         )
 
         # 获取订单簿
-        order_book = exchange.get_order_book(AssetType.BTC)
+        order_book = exchange.get_order_book(TradingPairType.BTC_USDT)
 
         assert OrderType.BUY in order_book
         assert OrderType.SELL in order_book
@@ -426,7 +426,7 @@ class TestExchange:
 
     def test_get_trading_pair(self, exchange: Exchange) -> None:
         """测试获取交易对信息"""
-        pair = exchange.get_trading_pair(AssetType.BTC)
+        pair = exchange.get_trading_pair(TradingPairType.BTC_USDT)
 
         assert pair is not None
         assert pair.base_asset == AssetType.BTC
@@ -444,7 +444,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
@@ -452,16 +452,16 @@ class TestExchange:
         exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
 
         # 获取成交记录
-        trades = exchange.get_recent_trades(AssetType.BTC)
+        trades = exchange.get_recent_trades(TradingPairType.BTC_USDT)
         assert len(trades) == 1
 
-        trades = exchange.get_recent_trades(AssetType.BTC, limit=5)
+        trades = exchange.get_recent_trades(TradingPairType.BTC_USDT, limit=5)
         assert len(trades) <= 5
 
     def test_deposit_withdraw(self, exchange: Exchange, alice: Exchange) -> None:
@@ -500,7 +500,7 @@ class TestExchange:
             exchange.place_order(
                 user=invalid_user,
                 order_type=OrderType.BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 quantity=0.1,
                 price=5000.0,
             )
@@ -523,7 +523,7 @@ class TestExchange:
         order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.1,
             price=5000.0,
         )
@@ -575,7 +575,7 @@ class TestExchange:
             pass
 
         # 测试get_order_book对不存在的资产类型的处理
-        empty_order_book = exchange.get_order_book(AssetType.BTC)  # 修改测试策略
+        empty_order_book = exchange.get_order_book(TradingPairType.BTC_USDT)  # 修改测试策略
         # 验证对BTC资产类型能正常获取订单簿
         assert isinstance(empty_order_book, dict)
         assert OrderType.BUY in empty_order_book
@@ -589,7 +589,7 @@ class TestExchange:
 
     def test_get_recent_trades_empty(self, exchange: Exchange) -> None:
         """测试获取空成交记录"""
-        trades = exchange.get_recent_trades(AssetType.BTC)
+        trades = exchange.get_recent_trades(TradingPairType.BTC_USDT)
         assert trades == []
 
     def test_get_user_orders_empty(self, exchange: Exchange, alice: Exchange) -> None:
@@ -621,7 +621,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -629,7 +629,7 @@ class TestExchange:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -651,7 +651,7 @@ class TestExchange:
         buy_order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=2.0,
             price=50000.0,
         )
@@ -660,7 +660,7 @@ class TestExchange:
         sell_order = exchange.place_order(
             user=bob,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
@@ -682,7 +682,7 @@ class TestExchange:
             exchange.place_order(
                 user=alice,
                 order_type=OrderType.BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 quantity=0.0,
                 price=50000.0,
             )
@@ -695,7 +695,7 @@ class TestExchange:
             exchange.place_order(
                 user=alice,
                 order_type=OrderType.BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 quantity=1.0,
                 price=0.0,
             )
@@ -708,7 +708,7 @@ class TestExchange:
             exchange.place_order(
                 user=alice,
                 order_type=OrderType.BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 quantity=1.0,
                 price=1001.0,  # 需要1001 USDT，但初始只有1000
             )
@@ -724,7 +724,7 @@ class TestExchange:
         order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -739,12 +739,12 @@ class TestExchange:
 
     def test_get_market_depth_empty(self, exchange: Exchange) -> None:
         """测试获取空市场深度"""
-        depth = exchange.get_market_depth(AssetType.BTC)
+        depth = exchange.get_market_depth(TradingPairType.BTC_USDT)
         assert depth == {'bids': [], 'asks': []}
 
     def test_get_market_summary_empty(self, exchange: Exchange) -> None:
         """测试获取空市场摘要"""
-        summary = exchange.get_market_summary(AssetType.BTC)
+        summary = exchange.get_market_summary(TradingPairType.BTC_USDT)
         assert summary['symbol'] == TradingPairType.BTC_USDT.value
         assert summary['current_price'] == 50000.0
         assert summary['total_bids'] == 0

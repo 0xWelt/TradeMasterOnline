@@ -27,7 +27,7 @@ class TestMarketOrders:
         self.exchange.place_order(
             user=self.user2,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
             quantity=0.5,
         )
@@ -36,7 +36,7 @@ class TestMarketOrders:
         order = self.exchange.place_order(
             user=self.user1,
             order_type=OrderType.MARKET_BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             amount=25000.0,
         )
 
@@ -49,7 +49,7 @@ class TestMarketOrders:
         self.exchange.place_order(
             user=self.user2,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
             quantity=0.5,
         )
@@ -58,7 +58,7 @@ class TestMarketOrders:
         order = self.exchange.place_order(
             user=self.user1,
             order_type=OrderType.MARKET_SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             amount=25000.0,
         )
 
@@ -73,7 +73,7 @@ class TestMarketOrders:
             self.exchange.place_order(
                 user=poor_user,
                 order_type=OrderType.MARKET_BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 amount=20000.0,  # 超过1000 USDT初始余额
             )
 
@@ -83,7 +83,7 @@ class TestMarketOrders:
             self.exchange.place_order(
                 user=self.user1,
                 order_type=OrderType.MARKET_SELL,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 amount=100000.0,  # 需要卖出2 BTC，但只有1 BTC
             )
 
@@ -97,7 +97,7 @@ class TestMarketOrders:
         order = self.exchange.place_order(
             user=self.user1,
             order_type=OrderType.MARKET_BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             amount=1000.0,
         )
 
@@ -110,7 +110,7 @@ class TestMarketOrders:
         self.exchange.place_order(
             user=self.user2,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
             quantity=0.1,  # 少量卖单
         )
@@ -119,7 +119,7 @@ class TestMarketOrders:
         order = self.exchange.place_order(
             user=self.user1,
             order_type=OrderType.MARKET_BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             amount=10000.0,  # 需要0.2 BTC，但只有0.1 BTC卖单
         )
 

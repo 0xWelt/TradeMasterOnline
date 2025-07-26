@@ -3,7 +3,16 @@
 import pytest
 
 from tmo.constants import TradingPairType
-from tmo.typing import Asset, AssetType, Order, OrderType, Portfolio, Trade, TradingPair, User
+from tmo.typing import (
+    Asset,
+    AssetType,
+    Order,
+    OrderType,
+    Portfolio,
+    TradeSettlement,
+    TradingPair,
+    User,
+)
 
 
 class TestAssetType:
@@ -46,7 +55,7 @@ class TestOrder:
         order = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -54,7 +63,7 @@ class TestOrder:
         assert order.id is not None
         assert order.user.id is not None
         assert order.order_type == OrderType.BUY
-        assert order.asset == AssetType.BTC
+        assert order.trading_pair == TradingPairType.BTC_USDT
         assert order.quantity == 1.0
         assert order.price == 50000.0
         assert order.filled_quantity == 0
@@ -66,7 +75,7 @@ class TestOrder:
         order = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.3,
@@ -81,7 +90,7 @@ class TestOrder:
         order1 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.5,
@@ -92,7 +101,7 @@ class TestOrder:
         order2 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=1.0,
@@ -106,7 +115,7 @@ class TestOrder:
         order1 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.0,
@@ -117,7 +126,7 @@ class TestOrder:
         order2 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.5,
@@ -128,7 +137,7 @@ class TestOrder:
         order3 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=1.0,
@@ -136,7 +145,7 @@ class TestOrder:
         assert not order3.is_partially_filled
 
 
-class TestTrade:
+class TestTradeSettlement:
     """测试成交记录模型"""
 
     def test_trade_creation(self):
@@ -147,7 +156,7 @@ class TestTrade:
         buy_order = Order(
             user=user1,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -155,25 +164,25 @@ class TestTrade:
         sell_order = Order(
             user=user2,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
 
-        trade = Trade(
+        settlement = TradeSettlement(
             buy_order=buy_order,
             sell_order=sell_order,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
 
-        assert trade.id is not None
-        assert trade.buy_order_id == buy_order.id
-        assert trade.sell_order_id == sell_order.id
-        assert trade.asset == AssetType.BTC
-        assert trade.quantity == 0.5
-        assert trade.price == 50000.0
+        assert settlement.timestamp is not None
+        assert settlement.buy_order.id == buy_order.id
+        assert settlement.sell_order.id == sell_order.id
+        assert settlement.trading_pair == TradingPairType.BTC_USDT
+        assert settlement.quantity == 0.5
+        assert settlement.price == 50000.0
 
 
 class TestTradingPair:
@@ -277,7 +286,7 @@ class TestOrderCallbacks:
         order = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
@@ -287,15 +296,15 @@ class TestOrderCallbacks:
         sell_order = Order(
             user=seller,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
 
-        trade = Trade(
+        trade = TradeSettlement(
             buy_order=order,
             sell_order=sell_order,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
@@ -329,7 +338,7 @@ class TestOrderCallbacks:
         order = Order(
             user=user,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
@@ -339,15 +348,15 @@ class TestOrderCallbacks:
         buy_order = Order(
             user=buyer,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
 
-        trade = Trade(
+        trade = TradeSettlement(
             buy_order=buy_order,
             sell_order=order,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
@@ -374,7 +383,7 @@ class TestOrderCallbacks:
         order = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
@@ -396,7 +405,7 @@ class TestOrderCallbacks:
         order = Order(
             user=user,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )
@@ -421,7 +430,7 @@ class TestOrderCallbacks:
         order = Order(
             user=user1,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=500.0,
         )

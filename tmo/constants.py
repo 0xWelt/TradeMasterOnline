@@ -55,3 +55,12 @@ class TradingPairType(StrEnum):
     def initial_price(self) -> float:
         """获取初始价格"""
         return self.base_asset.initial_value / self.quote_asset.initial_value
+
+
+class OrderStatus(StrEnum):
+    """订单状态枚举"""
+
+    PENDING = 'pending'
+    PARTIALLY_FILLED = 'partially_filled'
+    FILLED = 'filled'
+    CANCELLED = 'cancelled'

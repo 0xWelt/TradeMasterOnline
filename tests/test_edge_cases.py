@@ -37,12 +37,12 @@ class TestExchangeEdgeCases:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
 
-        depth = exchange.get_market_depth(AssetType.BTC)
+        depth = exchange.get_market_depth(TradingPairType.BTC_USDT)
         assert 'bids' in depth
         assert 'asks' in depth
         assert len(depth['bids']) == 1
@@ -55,12 +55,12 @@ class TestExchangeEdgeCases:
         exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
 
-        summary = exchange.get_market_summary(AssetType.BTC)
+        summary = exchange.get_market_summary(TradingPairType.BTC_USDT)
         assert summary['symbol'] == TradingPairType.BTC_USDT.value
         assert summary['current_price'] == 50000.0
         assert summary['total_bids'] == 1
@@ -79,7 +79,7 @@ class TestExchangeEdgeCases:
         order = exchange.place_order(
             user=alice,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.01,
             price=100000.0,  # 正好使用1000 USDT
         )
@@ -94,12 +94,12 @@ class TestExchangeEdgeCases:
 
     def test_get_market_price(self, exchange: Exchange):
         """测试获取市场价格"""
-        price = exchange.get_market_price(AssetType.BTC)
+        price = exchange.get_market_price(TradingPairType.BTC_USDT)
         assert price == 50000.0
 
     def test_get_trading_pair_info(self, exchange: Exchange):
         """测试获取交易对信息"""
-        pair = exchange.get_trading_pair(AssetType.BTC)
+        pair = exchange.get_trading_pair(TradingPairType.BTC_USDT)
         assert pair is not None
         assert pair.symbol == TradingPairType.BTC_USDT.value
         assert pair.base_asset == AssetType.BTC

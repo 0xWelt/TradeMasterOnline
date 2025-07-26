@@ -3,6 +3,7 @@
 import pytest
 
 from tmo import AssetType, Exchange, OrderType
+from tmo.constants import TradingPairType
 
 
 class TestOrderParameters:
@@ -20,7 +21,7 @@ class TestOrderParameters:
         order = self.exchange.place_order(
             user=self.user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
             quantity=0.1,
         )
@@ -32,7 +33,7 @@ class TestOrderParameters:
         order = self.exchange.place_order(
             user=self.user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
             amount=5000.0,
         )
@@ -45,7 +46,7 @@ class TestOrderParameters:
             self.exchange.place_order(
                 user=self.user,
                 order_type=OrderType.BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 price=50000.0,
                 quantity=0.1,
                 amount=5000.0,
@@ -57,7 +58,7 @@ class TestOrderParameters:
             self.exchange.place_order(
                 user=self.user,
                 order_type=OrderType.BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 price=50000.0,
             )
 
@@ -66,7 +67,7 @@ class TestOrderParameters:
         order = self.exchange.place_order(
             user=self.user,
             order_type=OrderType.MARKET_BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             amount=5000.0,
         )
         assert order.amount == 5000.0
@@ -77,7 +78,7 @@ class TestOrderParameters:
             self.exchange.place_order(
                 user=self.user,
                 order_type=OrderType.MARKET_BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 amount=5000.0,
                 quantity=0.1,
             )
@@ -88,7 +89,7 @@ class TestOrderParameters:
             self.exchange.place_order(
                 user=self.user,
                 order_type=OrderType.MARKET_BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 amount=5000.0,
                 price=50000.0,
             )
@@ -99,7 +100,7 @@ class TestOrderParameters:
             self.exchange.place_order(
                 user=self.user,
                 order_type=OrderType.MARKET_BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
             )
 
     def test_market_sell_order_amount_only(self):
@@ -107,7 +108,7 @@ class TestOrderParameters:
         order = self.exchange.place_order(
             user=self.user,
             order_type=OrderType.MARKET_SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             amount=5000.0,
         )
         assert order.amount == 5000.0
@@ -118,7 +119,7 @@ class TestOrderParameters:
             self.exchange.place_order(
                 user=self.user,
                 order_type=OrderType.MARKET_SELL,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 amount=0.0,
             )
 
@@ -127,7 +128,7 @@ class TestOrderParameters:
         order = self.exchange.place_order(
             user=self.user,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
             amount=5000.0,
         )
@@ -139,7 +140,7 @@ class TestOrderParameters:
         order = self.exchange.place_order(
             user=self.user,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
             quantity=0.1,
         )

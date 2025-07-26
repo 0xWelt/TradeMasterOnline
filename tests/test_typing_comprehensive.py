@@ -2,7 +2,15 @@
 
 import pytest
 
-from tmo.typing import AssetType, Order, OrderType, Portfolio, Trade, User
+from tmo.typing import (
+    AssetType,
+    Order,
+    OrderType,
+    Portfolio,
+    TradeSettlement,
+    TradingPairType,
+    User,
+)
 
 
 class TestOrderComprehensive:
@@ -14,7 +22,7 @@ class TestOrderComprehensive:
         order = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -22,7 +30,7 @@ class TestOrderComprehensive:
         assert order.user.id is not None
         assert order.user.username == 'testuser'
         assert order.order_type == OrderType.BUY
-        assert order.asset == AssetType.BTC
+        assert order.trading_pair == TradingPairType.BTC_USDT
         assert order.quantity == 1.0
         assert order.price == 50000.0
 
@@ -32,7 +40,7 @@ class TestOrderComprehensive:
         order = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.3,
@@ -48,7 +56,7 @@ class TestOrderComprehensive:
         order1 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.5,
@@ -59,7 +67,7 @@ class TestOrderComprehensive:
         order2 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=1.0,
@@ -74,7 +82,7 @@ class TestOrderComprehensive:
         order1 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.0,
@@ -85,7 +93,7 @@ class TestOrderComprehensive:
         order2 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=0.5,
@@ -96,7 +104,7 @@ class TestOrderComprehensive:
         order3 = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             filled_quantity=1.0,
@@ -138,7 +146,7 @@ class TestTradeComprehensive:
         buy_order = Order(
             user=user1,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
@@ -146,20 +154,20 @@ class TestTradeComprehensive:
         sell_order = Order(
             user=user2,
             order_type=OrderType.SELL,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
         )
 
-        trade = Trade(
+        trade = TradeSettlement(
             buy_order=buy_order,
             sell_order=sell_order,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
         )
 
-        assert trade.asset == AssetType.BTC
+        assert trade.trading_pair == TradingPairType.BTC_USDT
         assert trade.quantity == 0.5
         assert trade.price == 50000.0
         assert trade.buy_order.id == buy_order.id

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-from .constants import AssetType, OrderType
+from .constants import AssetType, OrderStatus, OrderType, TradingPairType
 
 
 class Asset(BaseModel):
@@ -101,8 +101,8 @@ class Order(BaseModel):
     """关联的用户对象"""
     order_type: OrderType = Field(frozen=True)
     """订单类型：买入或卖出"""
-    asset: AssetType = Field(frozen=True)
-    """交易资产"""
+    trading_pair: TradingPairType = Field(frozen=True)
+    """交易对"""
     quantity: float = Field(gt=0, frozen=True)
     """数量（对应目标货币）"""
     price: float = Field(ge=0, frozen=True)
@@ -113,7 +113,7 @@ class Order(BaseModel):
     """创建时间"""
     filled_quantity: float = Field(default=0, ge=0)
     """已成交数量"""
-    status: str = Field(default='pending')
+    status: OrderStatus = Field(default=OrderStatus.PENDING)
     """订单状态"""
 
     @field_validator('id', 'timestamp', mode='before')
@@ -148,28 +148,31 @@ class Order(BaseModel):
         """是否部分成交"""
         return 0 < self.filled_quantity < self.quantity
 
-    def on_filled(self, trade: Trade) -> None:
+    def on_filled(self, trade: TradeSettlement) -> None:
         """订单成交时的回调"""
-        if self.user is None:
-            return
-
         if self.order_type == OrderType.BUY:
-            # 买单：获得资产，减少计价资产
+            # 买单：获得基础资产，减少计价资产
             self.user.update_balance(
-                asset=self.asset, available_change=trade.quantity, locked_change=-trade.quantity
+                asset=self.trading_pair.base_asset,
+                available_change=trade.quantity,
+                locked_change=-trade.quantity,
             )
             self.user.update_balance(
-                asset=AssetType.USDT,
+                asset=self.trading_pair.quote_asset,
                 available_change=-trade.quantity * trade.price,
                 locked_change=0,
             )
         else:
-            # 卖单：获得计价资产，减少资产
+            # 卖单：获得计价资产，减少基础资产
             self.user.update_balance(
-                asset=AssetType.USDT, available_change=trade.quantity * trade.price, locked_change=0
+                asset=self.trading_pair.quote_asset,
+                available_change=trade.quantity * trade.price,
+                locked_change=0,
             )
             self.user.update_balance(
-                asset=self.asset, available_change=0, locked_change=-trade.quantity
+                asset=self.trading_pair.base_asset,
+                available_change=0,
+                locked_change=-trade.quantity,
             )
 
     def on_cancelled(self) -> None:
@@ -181,30 +184,30 @@ class Order(BaseModel):
             # 释放锁定的计价资产
             locked_amount = self.remaining_quantity * self.price
             self.user.update_balance(
-                asset=AssetType.USDT, available_change=locked_amount, locked_change=-locked_amount
+                asset=AssetType(self.trading_pair.quote_asset.value),
+                available_change=locked_amount,
+                locked_change=-locked_amount,
             )
         else:
             # 释放锁定的资产
             self.user.update_balance(
-                asset=self.asset,
+                asset=AssetType(self.trading_pair.base_asset.value),
                 available_change=self.remaining_quantity,
                 locked_change=-self.remaining_quantity,
             )
 
 
-class Trade(BaseModel):
-    """成交记录模型"""
+class TradeSettlement(BaseModel):
+    """交易结算统计信息"""
 
     model_config = {'extra': 'forbid'}
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
-    """成交记录唯一标识"""
     buy_order: Order = Field(frozen=True)
     """买单对象"""
     sell_order: Order = Field(frozen=True)
     """卖单对象"""
-    asset: AssetType = Field(frozen=True)
-    """交易资产"""
+    trading_pair: TradingPairType = Field(frozen=True)
+    """交易对"""
     quantity: float = Field(gt=0, frozen=True)
     """成交数量"""
     price: float = Field(gt=0, frozen=True)
@@ -212,16 +215,12 @@ class Trade(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
     """成交时间"""
 
-    @field_validator('id', 'timestamp', mode='before')
+    @field_validator('timestamp', mode='before')
     @classmethod
     def _validate_auto_generated_fields(cls, v: object, info: ValidationInfo) -> object:
         """验证自动生成的字段"""
-        if v is not None:
-            # 忽略用户提供的值，使用默认值
-            if info.field_name == 'id':
-                return str(uuid.uuid4())
-            elif info.field_name == 'timestamp':
-                return datetime.now()
+        if v is not None and info.field_name == 'timestamp':
+            return datetime.now()
         return v
 
     @property

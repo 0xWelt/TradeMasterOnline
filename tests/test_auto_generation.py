@@ -2,7 +2,7 @@
 
 import pytest
 
-from tmo.typing import AssetType, Order, OrderType, Trade, User
+from tmo.typing import Order, OrderType, TradeSettlement, TradingPairType, User
 
 
 class TestAutoGeneration:
@@ -32,7 +32,7 @@ class TestAutoGeneration:
         order = Order(
             user=user,
             order_type=OrderType.BUY,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=1.0,
             price=50000.0,
             id='manual-order-id',
@@ -52,25 +52,31 @@ class TestAutoGeneration:
         user2 = User(username='seller', email='seller@example.com')
 
         order1 = Order(
-            user=user1, order_type=OrderType.BUY, asset=AssetType.BTC, quantity=1.0, price=50000.0
+            user=user1,
+            order_type=OrderType.BUY,
+            trading_pair=TradingPairType.BTC_USDT,
+            quantity=1.0,
+            price=50000.0,
         )
         order2 = Order(
-            user=user2, order_type=OrderType.SELL, asset=AssetType.BTC, quantity=1.0, price=50000.0
+            user=user2,
+            order_type=OrderType.SELL,
+            trading_pair=TradingPairType.BTC_USDT,
+            quantity=1.0,
+            price=50000.0,
         )
 
-        # 尝试手动设置id和timestamp
-        trade = Trade(
+        # 尝试手动设置timestamp
+        trade = TradeSettlement(
             buy_order=order1,
             sell_order=order2,
-            asset=AssetType.BTC,
+            trading_pair=TradingPairType.BTC_USDT,
             quantity=0.5,
             price=50000.0,
-            id='manual-trade-id',
             timestamp='2023-01-01T00:00:00',
         )
 
         # 验证自动生成的值被使用
-        assert trade.id != 'manual-trade-id'
         assert trade.timestamp.year != 2023  # 应该是当前年份
         assert trade.quantity == 0.5
         assert trade.price == 50000.0
@@ -84,7 +90,7 @@ class TestAutoGeneration:
             Order(
                 user=user,
                 order_type=OrderType.BUY,
-                asset=AssetType.BTC,
+                trading_pair=TradingPairType.BTC_USDT,
                 quantity=1.0,
                 price=50000.0,
                 extra_field='should_be_rejected',

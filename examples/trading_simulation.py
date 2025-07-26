@@ -36,9 +36,9 @@ class TradingSimulator:
         self.user_count = user_count
         self.trading_rounds = trading_rounds
         self.trading_pairs = (
-            [pair.value for pair in trading_pairs]
+            [pair for pair in trading_pairs]
             if trading_pairs
-            else [pair.value for pair in TradingPairType]
+            else [pair for pair in TradingPairType]
         )
 
         self.exchange = Exchange()
@@ -47,8 +47,8 @@ class TradingSimulator:
         self.round_counter = 0
 
         # 初始化价格历史
-        for symbol in self.trading_pairs:
-            self.price_history[symbol] = []
+        for pair in self.trading_pairs:
+            self.price_history[pair.value] = []
 
     def create_random_users(self) -> None:
         """创建随机用户"""
@@ -91,18 +91,14 @@ class TradingSimulator:
                 f'用户 {user.username} 充值: {usdt_amount} USDT, {btc_amount} BTC, {eth_amount} ETH'
             )
 
-    def get_current_price(self, asset: AssetType) -> float:
+    def get_current_price(self, trading_pair: TradingPairType) -> float:
         """获取当前价格"""
-        if asset == AssetType.BTC:
-            return self.exchange.get_market_price(AssetType.BTC)
-        elif asset == AssetType.ETH:
-            return self.exchange.get_market_price(AssetType.ETH)
-        return 1.0
+        return self.exchange.get_market_price(trading_pair)
 
     def can_place_order(
         self,
         user: User,
-        asset: AssetType,
+        trading_pair: TradingPairType,
         order_type: OrderType,
         quantity: float,
         price: float = 0.0,
@@ -114,11 +110,12 @@ class TradingSimulator:
                 usdt_portfolio = self.exchange.get_user_portfolio(user, AssetType.USDT)
                 # 对于市价订单，使用当前价格估算
                 if price == 0.0:
-                    price = self.get_current_price(asset)
+                    price = self.get_current_price(trading_pair)
                 required_amount = quantity * price
                 return usdt_portfolio.available_balance >= required_amount
             else:  # SELL or MARKET_SELL
                 # 检查资产余额
+                asset = trading_pair.base_asset
                 asset_portfolio = self.exchange.get_user_portfolio(user, asset)
                 return asset_portfolio.available_balance >= quantity
         except ValueError as e:
@@ -138,34 +135,25 @@ class TradingSimulator:
                 self._place_random_order(user)
 
         # 只在轮次结束时记录最终价格
-        for symbol in self.trading_pairs:
-            pair = self.exchange.trading_pairs[symbol]
-            self.price_history[symbol].append((self.round_counter, pair.current_price))
+        for pair in self.trading_pairs:
+            pair_obj = self.exchange.trading_pairs[pair.value]
+            self.price_history[pair.value].append((self.round_counter, pair_obj.current_price))
 
     def _place_random_order(self, user: User) -> None:
         """随机下单 - 混合使用市价和限价订单"""
-        assets = [AssetType.BTC, AssetType.ETH]
         # 混合使用市价和限价订单类型，市价订单概率更高
         if random.random() < 0.7:  # 70% 市价订单
             order_types = [OrderType.MARKET_BUY, OrderType.MARKET_SELL]
         else:  # 30% 限价订单
             order_types = [OrderType.BUY, OrderType.SELL]
-        symbols = self.trading_pairs
 
-        asset = random.choice(assets)
+        trading_pair = random.choice(self.trading_pairs)
         order_type = random.choice(order_types)
-        symbol = random.choice(symbols)
 
-        # 确保资产和交易对匹配
-        if asset == AssetType.BTC and 'BTC' not in symbol:
-            return
-        if asset == AssetType.ETH and 'ETH' not in symbol:
-            return
-
-        # 根据可用余额计算合理的数量范围
         try:
             # 获取当前市场价格
-            current_price = self.get_current_price(asset)
+            current_price = self.get_current_price(trading_pair)
+            base_asset = trading_pair.base_asset
 
             # 根据订单类型计算数量和价格
             if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
@@ -183,37 +171,51 @@ class TradingSimulator:
                     if amount < 10.0:  # 最小金额限制
                         return
 
-                    # 根据资产类型设置合理范围
-                    if asset == AssetType.BTC:
+                    # 根据交易对设置合理范围
+                    if trading_pair == TradingPairType.BTC_USDT:
                         amount = random.uniform(min(100.0, amount * 0.1), amount)
-                    else:  # ETH
+                    elif trading_pair == TradingPairType.ETH_USDT:
                         amount = random.uniform(min(50.0, amount * 0.1), amount)
+                    else:  # ETH/BTC
+                        amount = random.uniform(min(0.001, amount * 0.1), amount)
 
                     amount = min(amount, max_usdt * 0.8)
-                    price = 0.0  # 市价订单价格为0（不传递此参数）
+
+                    self.exchange.place_order(
+                        user=user, order_type=order_type, trading_pair=trading_pair, amount=amount
+                    )
+                    print(
+                        f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.2f} USDT {trading_pair.value}'
+                    )
 
                 else:  # MARKET_SELL
-                    # 获取资产可用余额的USDT价值
-                    asset_portfolio = self.exchange.get_user_portfolio(user, asset)
+                    # 获取基础资产可用余额
+                    asset_portfolio = self.exchange.get_user_portfolio(user, base_asset)
                     max_quantity = asset_portfolio.available_balance
 
                     if max_quantity <= 0:
                         return
 
-                    # 计算资产的USDT价值，出售最多80%的可用资产价值
-                    max_usdt_value = max_quantity * current_price
+                    # 计算资产的计价货币价值，出售最多80%的可用资产价值
+                    if trading_pair == TradingPairType.ETH_BTC:
+                        # ETH/BTC需要特殊处理，因为计价资产是BTC
+                        btc_price = self.get_current_price(TradingPairType.BTC_USDT)
+                        max_usdt_value = max_quantity * current_price * btc_price
+                    else:
+                        max_usdt_value = max_quantity * current_price
+
                     amount = max_usdt_value * 0.8
                     if amount < 10.0:  # 最小金额限制
                         return
 
-                    # 根据资产类型设置合理范围
-                    if asset == AssetType.BTC:
-                        amount = random.uniform(min(100.0, amount * 0.1), amount)
-                    else:  # ETH
-                        amount = random.uniform(min(50.0, amount * 0.1), amount)
-
                     amount = min(amount, max_usdt_value * 0.8)
-                    price = 0.0  # 市价订单价格为0（不传递此参数）
+
+                    self.exchange.place_order(
+                        user=user, order_type=order_type, trading_pair=trading_pair, amount=amount
+                    )
+                    print(
+                        f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.2f} {trading_pair.quote_asset.value} {trading_pair.value}'
+                    )
 
             else:  # 限价订单逻辑
                 # 限价订单的价格在当前价格±5%范围内波动
@@ -236,21 +238,34 @@ class TradingSimulator:
                     if max_quantity < 0.001:
                         return
 
-                    # 根据资产类型设置合理范围
-                    if asset == AssetType.BTC:
+                    # 根据交易对设置合理范围
+                    if trading_pair == TradingPairType.BTC_USDT:
                         quantity = random.uniform(min(0.001, max_quantity * 0.1), max_quantity)
-                    else:  # ETH
+                    elif trading_pair == TradingPairType.ETH_USDT:
                         quantity = random.uniform(min(0.01, max_quantity * 0.1), max_quantity)
+                    else:  # ETH/BTC
+                        quantity = random.uniform(min(0.001, max_quantity * 0.1), max_quantity)
 
                     quantity = min(quantity, max_quantity)
                     price = target_price
+
+                    self.exchange.place_order(
+                        user=user,
+                        order_type=order_type,
+                        trading_pair=trading_pair,
+                        quantity=quantity,
+                        price=price,
+                    )
+                    print(
+                        f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{price:.2f} {trading_pair.value}'
+                    )
 
                 else:  # OrderType.SELL
                     # 限价卖单价格略高于当前价格
                     target_price = max(target_price, current_price * 1.02)
 
                     # 获取资产可用余额
-                    asset_portfolio = self.exchange.get_user_portfolio(user, asset)
+                    asset_portfolio = self.exchange.get_user_portfolio(user, base_asset)
                     max_quantity = asset_portfolio.available_balance
 
                     if max_quantity <= 0:
@@ -261,57 +276,33 @@ class TradingSimulator:
                     if max_sell_quantity < 0.001:
                         return
 
-                    # 根据资产类型设置合理范围
-                    if asset == AssetType.BTC:
+                    # 根据交易对设置合理范围
+                    if trading_pair == TradingPairType.BTC_USDT:
                         quantity = random.uniform(
                             min(0.001, max_sell_quantity * 0.1), max_sell_quantity
                         )
-                    else:  # ETH
+                    elif trading_pair == TradingPairType.ETH_USDT:
                         quantity = random.uniform(
                             min(0.01, max_sell_quantity * 0.1), max_sell_quantity
+                        )
+                    else:  # ETH/BTC
+                        quantity = random.uniform(
+                            min(0.001, max_sell_quantity * 0.1), max_sell_quantity
                         )
 
                     quantity = min(quantity, max_sell_quantity)
                     price = target_price
 
-        except ValueError as e:
-            print(f'计算订单数量失败: {e}')
-            return
-
-        # 确保参数有效
-        if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
-            if amount <= 0:
-                return
-        else:  # 限价订单
-            if quantity <= 0 or price <= 0:
-                return
-
-        try:
-            # 根据订单类型调用正确的API
-            if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
-                # 市价订单只使用金额参数
-                self.exchange.place_order(
-                    user=user, order_type=order_type, asset=asset, amount=amount
-                )
-            else:  # 限价订单需要数量和价格参数
-                self.exchange.place_order(
-                    user=user, order_type=order_type, asset=asset, quantity=quantity, price=price
-                )
-
-            order_type_name = (
-                '市价' if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL] else '限价'
-            )
-
-            if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
-                # 市价订单显示金额
-                print(
-                    f'轮次{self.round_counter}: {user.username} {order_type_name}{order_type.value} {amount:.2f} USDT'
-                )
-            else:  # 限价订单显示数量和价格
-                price_str = f'@{price:.2f}'
-                print(
-                    f'轮次{self.round_counter}: {user.username} {order_type_name}{order_type.value} {quantity:.6f} {asset.value}{price_str}'
-                )
+                    self.exchange.place_order(
+                        user=user,
+                        order_type=order_type,
+                        trading_pair=trading_pair,
+                        quantity=quantity,
+                        price=price,
+                    )
+                    print(
+                        f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{price:.2f} {trading_pair.value}'
+                    )
 
         except ValueError as e:
             print(f'轮次{self.round_counter}: 下单失败 - {e}')

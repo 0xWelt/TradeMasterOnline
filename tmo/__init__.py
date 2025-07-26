@@ -5,7 +5,7 @@ __author__ = 'TradeMasterOnline Team'
 
 from .constants import AssetType, OrderType, TradingPairType
 from .exchange import Exchange
-from .typing import Asset, Order, Trade, TradingPair
+from .typing import Asset, Order, TradeSettlement, TradingPair
 
 
 __all__ = [
@@ -14,7 +14,7 @@ __all__ = [
     'Exchange',
     'Order',
     'OrderType',
-    'Trade',
+    'TradeSettlement',
     'TradingPair',
     'TradingPairType',
 ]
