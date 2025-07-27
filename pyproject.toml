@@ -25,6 +25,7 @@ dev = [
     "ruff>=0.1.0",
     "pre-commit>=4.2.0",
     "pytest-xdist>=3.8.0",
+    "pytest-timeout>=2.4.0",
 ]
 
 [build-system]
@@ -154,3 +155,6 @@ inline-quotes = "single"
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
+
+[dependency-groups]
+dev = []

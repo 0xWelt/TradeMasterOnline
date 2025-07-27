@@ -24,7 +24,7 @@ jobs:
 
     - name: Run pytest
       run: |
-        uv run pytest -n 8 -vvv --cov=tmo --cov-report=xml --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy
+        uv run pytest -n 8 -vvv --cov=tmo --cov-report=xml --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy --timeout=60
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v5

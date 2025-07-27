@@ -306,32 +306,41 @@ class Order(BaseModel):
         return self.base_amount - self.filled_base_amount
 
     @property
+    def remaining_quote_amount(self) -> float:
+        """剩余计价资产金额。
+
+        Returns:
+            float: 订单总计价资产金额减去已成交计价资产金额。
+        """
+        if self.quote_amount is None:
+            return 0.0
+        return self.quote_amount - self.filled_quote_amount
+
+    @property
     def is_filled(self) -> bool:
         """是否完全成交。
 
         Returns:
-            bool: 当已成交基础资产数量大于等于订单基础资产数量时返回True。
+            bool: 当已成交数量达到订单设定目标时返回True。
         """
-        if self.base_amount is None:
-            return False
-        return self.filled_base_amount >= self.base_amount
+        if self.base_amount is not None:
+            return self.filled_base_amount >= self.base_amount
+        if self.quote_amount is not None:
+            return self.filled_quote_amount >= self.quote_amount
+        return False
 
     @property
     def is_partially_filled(self) -> bool:
         """是否部分成交。
 
         Returns:
-            bool: 当已成交基础资产数量大于0且小于订单基础资产数量时返回True。
+            bool: 当已成交数量大于0但小于订单设定目标时返回True。
         """
-        if self.base_amount is None:
-            return False
-        return 0 < self.filled_base_amount < self.base_amount
-
-    def on_filled(self, trade: TradeSettlement) -> None:
-        """订单成交时的回调方法（已废弃）。
-
-        用户持仓更新已移动到TradeSettlement层面处理。
-        """
+        if self.base_amount is not None:
+            return 0 < self.filled_base_amount < self.base_amount
+        if self.quote_amount is not None:
+            return 0 < self.filled_quote_amount < self.quote_amount
+        return False
 
     def on_cancelled(self) -> None:
         """订单取消时的回调方法。
