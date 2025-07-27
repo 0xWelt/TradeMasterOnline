@@ -33,17 +33,15 @@ class TradingPairEngine:
     def __init__(
         self,
         trading_pair_type: TradingPairType,
-        initial_price: float = 1.0,
     ):
         """初始化交易对。
 
         Args:
             trading_pair_type: 交易对类型枚举。
-            initial_price: 初始价格。
         """
         self.base_asset = trading_pair_type.base_asset
         self.quote_asset = trading_pair_type.quote_asset
-        self.current_price = initial_price
+        self.current_price = trading_pair_type.initial_price
         self.last_update = datetime.now()
 
         # 订单簿
@@ -291,7 +289,7 @@ class TradingPairEngine:
         trade = TradeSettlement(
             buy_order=buy_order,
             sell_order=sell_order,
-            trading_pair=TradingPairType(f'{self.base_asset.value}_{self.quote_asset.value}'),
+            trading_pair=TradingPairType(f'{self.base_asset.value}/{self.quote_asset.value}'),
             base_amount=quantity,
             price=price,
         )
@@ -326,27 +324,27 @@ class TradingPairEngine:
         buyer = trade.buy_order.user
         seller = trade.sell_order.user
 
-        # 买家操作：获得基础资产，减少计价资产
+        # 买家操作：获得基础资产，从锁定余额中扣除计价资产
         buyer.update_balance(
             asset=trade.trading_pair.base_asset,
             available_change=trade.base_amount,
-            locked_change=-trade.base_amount,
+            locked_change=0,  # 基础资产是新获得的，不涉及锁定
         )
         buyer.update_balance(
             asset=trade.trading_pair.quote_asset,
-            available_change=-trade.base_amount * trade.price,
-            locked_change=0,
+            available_change=0,  # 计价资产从锁定余额中扣除
+            locked_change=-trade.base_amount * trade.price,
         )
 
-        # 卖家操作：获得计价资产，减少基础资产
+        # 卖家操作：获得计价资产，从锁定余额中扣除基础资产
         seller.update_balance(
             asset=trade.trading_pair.quote_asset,
             available_change=trade.base_amount * trade.price,
-            locked_change=0,
+            locked_change=0,  # 计价资产是新获得的
         )
         seller.update_balance(
             asset=trade.trading_pair.base_asset,
-            available_change=0,
+            available_change=0,  # 基础资产从锁定余额中扣除
             locked_change=-trade.base_amount,
         )
 

@@ -42,38 +42,23 @@ class OrderStatus(StrEnum):
 
 
 class TradingPairType(StrEnum):
-    """交易对类型枚举
+    """交易对类型枚举"""
 
-    定义所有支持的交易对，包含基础资产和计价资产的组合。
-    使用字符串枚举确保类型安全和可读性。
-
-    Attributes:
-        BTC_USDT: 比特币/泰达币交易对，以USDT计价
-        ETH_USDT: 以太坊/泰达币交易对，以USDT计价
-        ETH_BTC: 以太坊/比特币交易对，以BTC计价
-    """
-
-    BTC_USDT = 'BTC_USDT'
-    ETH_USDT = 'ETH_USDT'
-    ETH_BTC = 'ETH_BTC'
+    BTC_USDT = 'BTC/USDT'
+    ETH_USDT = 'ETH/USDT'
+    ETH_BTC = 'ETH/BTC'
 
     @property
     def base_asset(self) -> AssetType:
         """获取基础资产类型"""
-        return {
-            TradingPairType.BTC_USDT: AssetType.BTC,
-            TradingPairType.ETH_USDT: AssetType.ETH,
-            TradingPairType.ETH_BTC: AssetType.ETH,
-        }[self]
+        base, _ = self.value.split('/')
+        return AssetType(base)
 
     @property
     def quote_asset(self) -> AssetType:
         """获取计价资产类型"""
-        return {
-            TradingPairType.BTC_USDT: AssetType.USDT,
-            TradingPairType.ETH_USDT: AssetType.USDT,
-            TradingPairType.ETH_BTC: AssetType.BTC,
-        }[self]
+        _, quote = self.value.split('/')
+        return AssetType(quote)
 
     @property
     def initial_price(self) -> float:

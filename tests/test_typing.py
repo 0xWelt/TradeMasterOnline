@@ -214,7 +214,7 @@ class TestUser:
 
         # 先创建资产
         user.portfolios[AssetType.USDT] = Portfolio(
-            asset=AssetType.USDT, available_balance=100.0, locked_balance=50.0, total_balance=150.0
+            asset=AssetType.USDT, available_balance=100.0, locked_balance=50.0
         )
 
         # 更新余额
@@ -231,9 +231,7 @@ class TestPortfolio:
 
     def test_portfolio_creation(self):
         """测试持仓创建"""
-        portfolio = Portfolio(
-            asset=AssetType.BTC, available_balance=1.5, locked_balance=0.5, total_balance=2.0
-        )
+        portfolio = Portfolio(asset=AssetType.BTC, available_balance=1.5, locked_balance=0.5)
         assert portfolio.asset == AssetType.BTC
         assert portfolio.available_balance == 1.5
         assert portfolio.locked_balance == 0.5

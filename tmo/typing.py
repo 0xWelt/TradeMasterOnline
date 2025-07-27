@@ -49,8 +49,14 @@ class Portfolio(BaseModel):
     locked_balance: float = Field(default=0, ge=0)
     """锁定余额，已被订单占用但尚未成交的金额。"""
 
-    total_balance: float = Field(default=0, ge=0)
-    """总余额，等于可用余额加锁定余额。"""
+    @property
+    def total_balance(self) -> float:
+        """总余额，等于可用余额加锁定余额。
+
+        Returns:
+            float: 总余额，自动计算可用余额加锁定余额。
+        """
+        return self.available_balance + self.locked_balance
 
 
 class User(BaseModel):
@@ -120,13 +126,11 @@ class User(BaseModel):
                 asset=asset,
                 available_balance=0.0,
                 locked_balance=0.0,
-                total_balance=0.0,
             )
 
         portfolio = self.portfolios[asset]
         portfolio.available_balance += available_change
         portfolio.locked_balance += locked_change
-        portfolio.total_balance = portfolio.available_balance + portfolio.locked_balance
 
 
 class Order(BaseModel):

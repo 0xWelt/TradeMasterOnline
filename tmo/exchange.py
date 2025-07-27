@@ -50,11 +50,7 @@ class Exchange:
 
         # 交易对引擎 - 使用新的TradingPair类管理每个交易对
         self.trading_pair_engines: dict[str, TradingPairEngine] = {
-            pair.value: TradingPairEngine(
-                trading_pair_type=pair,
-                initial_price=pair.initial_price,
-            )
-            for pair in TradingPairType
+            pair.value: TradingPairEngine(trading_pair_type=pair) for pair in TradingPairType
         }
 
         # 交易结算记录
@@ -104,7 +100,6 @@ class Exchange:
                 asset=asset_type,
                 available_balance=1000.0 if asset_type == AssetType.USDT else 0.0,  # 初始USDT余额
                 locked_balance=0.0,
-                total_balance=1000.0 if asset_type == AssetType.USDT else 0.0,
             )
 
         self.users[user.id] = user
@@ -183,7 +178,6 @@ class Exchange:
 
         portfolio = user.portfolios[asset]
         portfolio.available_balance += amount
-        portfolio.total_balance += amount
 
         logger.debug(f'用户 {user.username} 充值 {amount} {asset.value}')
 
@@ -208,7 +202,6 @@ class Exchange:
             raise ValueError('可用余额不足')
 
         portfolio.available_balance -= amount
-        portfolio.total_balance -= amount
 
         logger.debug(f'用户 {user.username} 提现 {amount} {asset.value}')
 

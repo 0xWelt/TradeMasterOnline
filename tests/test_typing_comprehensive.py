@@ -121,7 +121,6 @@ class TestPortfolioComprehensive:
             asset=AssetType.BTC,
             available_balance=1.5,
             locked_balance=0.5,
-            total_balance=2.0,
         )
 
         assert portfolio.asset == AssetType.BTC
@@ -205,7 +204,7 @@ class TestUserComprehensive:
 
         # 先创建资产
         user.portfolios[AssetType.USDT] = Portfolio(
-            asset=AssetType.USDT, available_balance=100.0, locked_balance=50.0, total_balance=150.0
+            asset=AssetType.USDT, available_balance=100.0, locked_balance=50.0
         )
 
         # 更新余额
