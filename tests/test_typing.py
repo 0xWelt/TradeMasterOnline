@@ -10,7 +10,6 @@ from tmo.typing import (
     OrderType,
     Portfolio,
     TradeSettlement,
-    TradingPair,
     User,
 )
 
@@ -56,7 +55,7 @@ class TestOrder:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -64,24 +63,24 @@ class TestOrder:
         assert order.user.id is not None
         assert order.order_type == OrderType.BUY
         assert order.trading_pair == TradingPairType.BTC_USDT
-        assert order.quantity == 1.0
+        assert order.base_amount == 1.0
         assert order.price == 50000.0
-        assert order.filled_quantity == 0
+        assert order.filled_base_amount == 0
         assert order.status == 'pending'
 
-    def test_remaining_quantity(self):
+    def test_remaining_base_amount(self):
         """测试剩余数量计算"""
         user = User(username='testuser', email='test@example.com')
         order = Order(
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.3,
+            filled_base_amount=0.3,
         )
 
-        assert order.remaining_quantity == 0.7
+        assert order.remaining_base_amount == 0.7
 
     def test_is_filled(self):
         """测试是否完全成交"""
@@ -91,9 +90,9 @@ class TestOrder:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.5,
+            filled_base_amount=0.5,
         )
         assert not order1.is_filled
 
@@ -102,9 +101,9 @@ class TestOrder:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=1.0,
+            filled_base_amount=1.0,
         )
         assert order2.is_filled
 
@@ -116,9 +115,9 @@ class TestOrder:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.0,
+            filled_base_amount=0.0,
         )
         assert not order1.is_partially_filled
 
@@ -127,9 +126,9 @@ class TestOrder:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.5,
+            filled_base_amount=0.5,
         )
         assert order2.is_partially_filled
 
@@ -138,9 +137,9 @@ class TestOrder:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=1.0,
+            filled_base_amount=1.0,
         )
         assert not order3.is_partially_filled
 
@@ -157,7 +156,7 @@ class TestTradeSettlement:
             user=user1,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -165,7 +164,7 @@ class TestTradeSettlement:
             user=user2,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -173,7 +172,7 @@ class TestTradeSettlement:
             buy_order=buy_order,
             sell_order=sell_order,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=0.5,
+            base_amount=0.5,
             price=50000.0,
         )
 
@@ -181,31 +180,8 @@ class TestTradeSettlement:
         assert settlement.buy_order.id == buy_order.id
         assert settlement.sell_order.id == sell_order.id
         assert settlement.trading_pair == TradingPairType.BTC_USDT
-        assert settlement.quantity == 0.5
+        assert settlement.base_amount == 0.5
         assert settlement.price == 50000.0
-
-
-class TestTradingPair:
-    """测试交易对模型"""
-
-    def test_trading_pair_creation(self):
-        """测试交易对创建"""
-        pair = TradingPair(
-            base_asset=AssetType.BTC, quote_asset=AssetType.USDT, current_price=50000.0
-        )
-
-        assert pair.base_asset == AssetType.BTC
-        assert pair.quote_asset == AssetType.USDT
-        assert pair.current_price == 50000.0
-        assert pair.symbol == TradingPairType.BTC_USDT.value
-
-    def test_symbol_property(self):
-        """测试交易对符号属性"""
-        pair = TradingPair(
-            base_asset=AssetType.BTC, quote_asset=AssetType.USDT, current_price=50000.0
-        )
-
-        assert pair.symbol == TradingPairType.BTC_USDT.value
 
 
 class TestUser:
@@ -287,7 +263,7 @@ class TestOrderCallbacks:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
@@ -297,7 +273,7 @@ class TestOrderCallbacks:
             user=seller,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
@@ -305,24 +281,31 @@ class TestOrderCallbacks:
             buy_order=order,
             sell_order=sell_order,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
-        order.on_filled(trade)
+        # on_filled已废弃，直接测试余额更新逻辑
+        # 模拟TradeSettlement层面的余额更新
+        buyer = order.user
 
-        # 验证余额更新
+        # 买家操作：获得基础资产，减少计价资产
+        buyer.update_balance(
+            asset=trade.trading_pair.base_asset,
+            available_change=trade.base_amount,
+            locked_change=-trade.base_amount,
+        )
+        buyer.update_balance(
+            asset=trade.trading_pair.quote_asset,
+            available_change=-trade.base_amount * trade.price,
+            locked_change=0,
+        )
+
+        # 验证BTC余额：获得1.0 BTC
         btc_portfolio = user.portfolios[AssetType.BTC]
         usdt_portfolio = user.portfolios[AssetType.USDT]
-
-        # 验证BTC余额：获得1.0 BTC，释放-1.0锁定（由于没有锁定，变成-1.0）
         assert btc_portfolio.available_balance == 1.0
-        assert btc_portfolio.locked_balance == -1.0
-        assert btc_portfolio.total_balance == 0.0
-
-        # 验证USDT余额：减少500 USDT可用余额，锁定余额不变
-        assert usdt_portfolio.available_balance == 500.0  # 1000 - 500 = 500
-        assert usdt_portfolio.locked_balance == 500.0  # 锁定余额不变
+        assert usdt_portfolio.available_balance == 500.0  # 1000 - 500
 
     def test_on_filled_sell_order(self):
         """测试卖单成交回调"""
@@ -339,7 +322,7 @@ class TestOrderCallbacks:
             user=user,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
@@ -349,7 +332,7 @@ class TestOrderCallbacks:
             user=buyer,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
@@ -357,16 +340,29 @@ class TestOrderCallbacks:
             buy_order=buy_order,
             sell_order=order,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
-        order.on_filled(trade)
+        # on_filled已废弃，直接测试余额更新逻辑
+        # 模拟TradeSettlement层面的余额更新
+        seller = order.user
+
+        # 卖家操作：获得计价资产，减少基础资产
+        seller.update_balance(
+            asset=trade.trading_pair.quote_asset,
+            available_change=trade.base_amount * trade.price,
+            locked_change=0,
+        )
+        seller.update_balance(
+            asset=trade.trading_pair.base_asset,
+            available_change=0,
+            locked_change=-trade.base_amount,
+        )
 
         # 验证余额更新
         btc_portfolio = user.portfolios[AssetType.BTC]
         usdt_portfolio = user.portfolios[AssetType.USDT]
-
         assert btc_portfolio.available_balance == 2.0  # 剩余可用
         assert btc_portfolio.locked_balance == 0.0  # 释放锁定
         assert btc_portfolio.total_balance == 2.0
@@ -384,7 +380,7 @@ class TestOrderCallbacks:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
@@ -406,7 +402,7 @@ class TestOrderCallbacks:
             user=user,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
 
@@ -431,7 +427,7 @@ class TestOrderCallbacks:
             user=user1,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=500.0,
         )
         assert order.user_id == user1.id

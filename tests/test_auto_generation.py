@@ -2,7 +2,8 @@
 
 import pytest
 
-from tmo.typing import Order, OrderType, TradeSettlement, TradingPairType, User
+from tmo.constants import TradingPairType
+from tmo.typing import Order, OrderType, TradeSettlement, User
 
 
 class TestAutoGeneration:
@@ -33,17 +34,17 @@ class TestAutoGeneration:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
             id='manual-order-id',
             timestamp='2023-01-01T00:00:00',
-            filled_quantity=999,  # 这个应该被允许设置
+            filled_base_amount=999,  # 这个应该被允许设置
         )
 
         # 验证自动生成的值被使用
         assert order.id != 'manual-order-id'
         assert order.timestamp.year != 2023  # 应该是当前年份
-        assert order.filled_quantity == 999  # 手动设置应该生效
+        assert order.filled_base_amount == 999  # 手动设置应该生效
         assert order.user.username == 'testuser'
 
     def test_trade_auto_generation_prevention(self):
@@ -55,14 +56,14 @@ class TestAutoGeneration:
             user=user1,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
         order2 = Order(
             user=user2,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -71,14 +72,14 @@ class TestAutoGeneration:
             buy_order=order1,
             sell_order=order2,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=0.5,
+            base_amount=0.5,
             price=50000.0,
             timestamp='2023-01-01T00:00:00',
         )
 
         # 验证自动生成的值被使用
         assert trade.timestamp.year != 2023  # 应该是当前年份
-        assert trade.quantity == 0.5
+        assert trade.base_amount == 0.5
         assert trade.price == 50000.0
 
     def test_extra_fields_rejection(self):
@@ -91,7 +92,7 @@ class TestAutoGeneration:
                 user=user,
                 order_type=OrderType.BUY,
                 trading_pair=TradingPairType.BTC_USDT,
-                quantity=1.0,
+                base_amount=1.0,
                 price=50000.0,
                 extra_field='should_be_rejected',
             )

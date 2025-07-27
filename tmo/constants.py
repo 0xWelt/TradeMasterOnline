@@ -32,31 +32,6 @@ class OrderType(StrEnum):
     MARKET_SELL = 'market_sell'
 
 
-class TradingPairType(StrEnum):
-    """交易对类型枚举"""
-
-    BTC_USDT = 'BTC/USDT'
-    ETH_USDT = 'ETH/USDT'
-    ETH_BTC = 'ETH/BTC'
-
-    @property
-    def base_asset(self) -> AssetType:
-        """获取基础资产"""
-        base_symbol = self.value.split('/')[0]
-        return AssetType(base_symbol)
-
-    @property
-    def quote_asset(self) -> AssetType:
-        """获取计价资产"""
-        quote_symbol = self.value.split('/')[1]
-        return AssetType(quote_symbol)
-
-    @property
-    def initial_price(self) -> float:
-        """获取初始价格"""
-        return self.base_asset.initial_value / self.quote_asset.initial_value
-
-
 class OrderStatus(StrEnum):
     """订单状态枚举"""
 
@@ -64,3 +39,47 @@ class OrderStatus(StrEnum):
     PARTIALLY_FILLED = 'partially_filled'
     FILLED = 'filled'
     CANCELLED = 'cancelled'
+
+
+class TradingPairType(StrEnum):
+    """交易对类型枚举
+
+    定义所有支持的交易对，包含基础资产和计价资产的组合。
+    使用字符串枚举确保类型安全和可读性。
+
+    Attributes:
+        BTC_USDT: 比特币/泰达币交易对，以USDT计价
+        ETH_USDT: 以太坊/泰达币交易对，以USDT计价
+        ETH_BTC: 以太坊/比特币交易对，以BTC计价
+    """
+
+    BTC_USDT = 'BTC_USDT'
+    ETH_USDT = 'ETH_USDT'
+    ETH_BTC = 'ETH_BTC'
+
+    @property
+    def base_asset(self) -> AssetType:
+        """获取基础资产类型"""
+        return {
+            TradingPairType.BTC_USDT: AssetType.BTC,
+            TradingPairType.ETH_USDT: AssetType.ETH,
+            TradingPairType.ETH_BTC: AssetType.ETH,
+        }[self]
+
+    @property
+    def quote_asset(self) -> AssetType:
+        """获取计价资产类型"""
+        return {
+            TradingPairType.BTC_USDT: AssetType.USDT,
+            TradingPairType.ETH_USDT: AssetType.USDT,
+            TradingPairType.ETH_BTC: AssetType.BTC,
+        }[self]
+
+    @property
+    def initial_price(self) -> float:
+        """获取交易对的初始价格"""
+        return {
+            TradingPairType.BTC_USDT: 50000.0,  # 1 BTC = 50000 USDT
+            TradingPairType.ETH_USDT: 3000.0,  # 1 ETH = 3000 USDT
+            TradingPairType.ETH_BTC: 0.06,  # 1 ETH = 0.06 BTC
+        }[self]

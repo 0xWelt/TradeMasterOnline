@@ -136,8 +136,8 @@ class TradingSimulator:
 
         # 只在轮次结束时记录最终价格
         for pair in self.trading_pairs:
-            pair_obj = self.exchange.trading_pairs[pair.value]
-            self.price_history[pair.value].append((self.round_counter, pair_obj.current_price))
+            engine = self.exchange.trading_pair_engines[pair.value]
+            self.price_history[pair.value].append((self.round_counter, engine.current_price))
 
     def _place_random_order(self, user: User) -> None:
         """随机下单 - 混合使用市价和限价订单"""
@@ -157,7 +157,7 @@ class TradingSimulator:
 
             # 根据订单类型计算数量和价格
             if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
-                # 市价订单逻辑 - 只使用金额参数
+                # 市价订单逻辑 - 完全修复版本
                 if order_type == OrderType.MARKET_BUY:
                     # 获取USDT可用余额
                     usdt_portfolio = self.exchange.get_user_portfolio(user, AssetType.USDT)
@@ -166,26 +166,27 @@ class TradingSimulator:
                     if max_usdt <= 0:
                         return
 
-                    # 使用当前市场价格计算金额，保留20%缓冲
-                    amount = max_usdt * 0.8  # 使用80%的可用余额
-                    if amount < 10.0:  # 最小金额限制
+                    # 确保最小金额，防止零值
+                    min_usdt = max(
+                        10.0, min(1000.0, max_usdt * 0.1)
+                    )  # 确保至少10 USDT，最多1000或10%
+                    amount = max(min_usdt, min(max_usdt * 0.8, max_usdt - 1.0))  # 留1.0缓冲
+
+                    # 双重检查确保大于0
+                    if amount <= 0:
                         return
 
-                    # 根据交易对设置合理范围
-                    if trading_pair == TradingPairType.BTC_USDT:
-                        amount = random.uniform(min(100.0, amount * 0.1), amount)
-                    elif trading_pair == TradingPairType.ETH_USDT:
-                        amount = random.uniform(min(50.0, amount * 0.1), amount)
-                    else:  # ETH/BTC
-                        amount = random.uniform(min(0.001, amount * 0.1), amount)
-
-                    amount = min(amount, max_usdt * 0.8)
-
-                    self.exchange.place_order(
-                        user=user, order_type=order_type, trading_pair=trading_pair, amount=amount
+                    order = self.exchange.place_order(
+                        user=user,
+                        order_type=order_type,
+                        trading_pair=trading_pair,
+                        quote_amount=amount,
                     )
+                    execution_msg = ''
+                    if order.average_execution_price > 0:
+                        execution_msg = f' 实际成交价: ${order.average_execution_price:.2f}'
                     print(
-                        f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.2f} USDT {trading_pair.value}'
+                        f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.2f} USDT {trading_pair.value}{execution_msg}'
                     )
 
                 else:  # MARKET_SELL
@@ -196,25 +197,35 @@ class TradingSimulator:
                     if max_quantity <= 0:
                         return
 
-                    # 计算资产的计价货币价值，出售最多80%的可用资产价值
-                    if trading_pair == TradingPairType.ETH_BTC:
-                        # ETH/BTC需要特殊处理，因为计价资产是BTC
-                        btc_price = self.get_current_price(TradingPairType.BTC_USDT)
-                        max_usdt_value = max_quantity * current_price * btc_price
-                    else:
-                        max_usdt_value = max_quantity * current_price
+                    # 根据交易对设置最小数量 - 确保不会太小
+                    min_quantity = 0.01  # 提高最小值
+                    if trading_pair == TradingPairType.BTC_USDT:
+                        min_quantity = 0.001  # BTC
+                    elif trading_pair == TradingPairType.ETH_USDT:
+                        min_quantity = 0.01  # ETH
+                    elif trading_pair == TradingPairType.ETH_BTC:
+                        min_quantity = 0.001  # ETH/BTC
 
-                    amount = max_usdt_value * 0.8
-                    if amount < 10.0:  # 最小金额限制
+                    # 计算卖出数量，确保大于最小值且不为零
+                    sell_quantity = max(
+                        min_quantity, min(max_quantity * 0.8, max_quantity - min_quantity)
+                    )
+
+                    # 最终检查确保大于0
+                    if sell_quantity <= 0:
                         return
 
-                    amount = min(amount, max_usdt_value * 0.8)
-
-                    self.exchange.place_order(
-                        user=user, order_type=order_type, trading_pair=trading_pair, amount=amount
+                    order = self.exchange.place_order(
+                        user=user,
+                        order_type=order_type,
+                        trading_pair=trading_pair,
+                        base_amount=sell_quantity,
                     )
+                    execution_msg = ''
+                    if order.average_execution_price > 0:
+                        execution_msg = f' 实际成交价: ${order.average_execution_price:.2f}'
                     print(
-                        f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.2f} {trading_pair.quote_asset.value} {trading_pair.value}'
+                        f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {sell_quantity:.6f} {base_asset.value} {trading_pair.value}{execution_msg}'
                     )
 
             else:  # 限价订单逻辑
@@ -233,31 +244,37 @@ class TradingSimulator:
                     if max_usdt <= 0:
                         return
 
-                    # 计算最大可购买数量
+                    # 计算最大可购买数量，确保不为零
                     max_quantity = max_usdt / target_price * 0.8
-                    if max_quantity < 0.001:
+                    min_quantity = 0.01  # 最小购买量
+                    if trading_pair == TradingPairType.BTC_USDT:
+                        min_quantity = 0.001
+                    elif trading_pair == TradingPairType.ETH_USDT:
+                        min_quantity = 0.01
+
+                    if max_quantity < min_quantity:
                         return
 
-                    # 根据交易对设置合理范围
-                    if trading_pair == TradingPairType.BTC_USDT:
-                        quantity = random.uniform(min(0.001, max_quantity * 0.1), max_quantity)
-                    elif trading_pair == TradingPairType.ETH_USDT:
-                        quantity = random.uniform(min(0.01, max_quantity * 0.1), max_quantity)
-                    else:  # ETH/BTC
-                        quantity = random.uniform(min(0.001, max_quantity * 0.1), max_quantity)
-
-                    quantity = min(quantity, max_quantity)
+                    # 确保数量在有效范围内
+                    quantity = max(
+                        min_quantity, min(max_quantity * 0.5, max_quantity - min_quantity)
+                    )
+                    if quantity <= 0:
+                        return
                     price = target_price
 
-                    self.exchange.place_order(
+                    order = self.exchange.place_order(
                         user=user,
                         order_type=order_type,
                         trading_pair=trading_pair,
-                        quantity=quantity,
+                        base_amount=quantity,
                         price=price,
                     )
+                    execution_msg = ''
+                    if order.average_execution_price > 0:
+                        execution_msg = f' 实际成交价: ${order.average_execution_price:.2f}'
                     print(
-                        f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{price:.2f} {trading_pair.value}'
+                        f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{price:.2f} {trading_pair.value}{execution_msg}'
                     )
 
                 else:  # OrderType.SELL
@@ -271,37 +288,37 @@ class TradingSimulator:
                     if max_quantity <= 0:
                         return
 
-                    # 出售最多80%的可用资产
+                    # 出售最多80%的可用资产，确保不为零
                     max_sell_quantity = max_quantity * 0.8
-                    if max_sell_quantity < 0.001:
+                    min_quantity = 0.01  # 最小卖出量
+                    if trading_pair == TradingPairType.BTC_USDT:
+                        min_quantity = 0.001
+                    elif trading_pair == TradingPairType.ETH_USDT:
+                        min_quantity = 0.01
+
+                    if max_sell_quantity < min_quantity:
                         return
 
-                    # 根据交易对设置合理范围
-                    if trading_pair == TradingPairType.BTC_USDT:
-                        quantity = random.uniform(
-                            min(0.001, max_sell_quantity * 0.1), max_sell_quantity
-                        )
-                    elif trading_pair == TradingPairType.ETH_USDT:
-                        quantity = random.uniform(
-                            min(0.01, max_sell_quantity * 0.1), max_sell_quantity
-                        )
-                    else:  # ETH/BTC
-                        quantity = random.uniform(
-                            min(0.001, max_sell_quantity * 0.1), max_sell_quantity
-                        )
-
-                    quantity = min(quantity, max_sell_quantity)
+                    # 确保卖出数量在有效范围内
+                    quantity = max(
+                        min_quantity, min(max_sell_quantity * 0.5, max_sell_quantity - min_quantity)
+                    )
+                    if quantity <= 0:
+                        return
                     price = target_price
 
-                    self.exchange.place_order(
+                    order = self.exchange.place_order(
                         user=user,
                         order_type=order_type,
                         trading_pair=trading_pair,
-                        quantity=quantity,
+                        base_amount=quantity,
                         price=price,
                     )
+                    execution_msg = ''
+                    if order.average_execution_price > 0:
+                        execution_msg = f' 实际成交价: ${order.average_execution_price:.2f}'
                     print(
-                        f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{price:.2f} {trading_pair.value}'
+                        f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{price:.2f} {trading_pair.value}{execution_msg}'
                     )
 
         except ValueError as e:
@@ -574,7 +591,7 @@ def main():
     """主函数"""
     simulator = TradingSimulator(
         user_count=5,
-        trading_rounds=5000,
+        trading_rounds=500,
         trading_pairs=[TradingPairType.BTC_USDT, TradingPairType.ETH_USDT],
     )
 

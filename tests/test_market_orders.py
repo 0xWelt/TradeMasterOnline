@@ -29,7 +29,7 @@ class TestMarketOrders:
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
-            quantity=0.5,
+            base_amount=0.5,
         )
 
         # 下市价买单
@@ -37,11 +37,11 @@ class TestMarketOrders:
             user=self.user1,
             order_type=OrderType.MARKET_BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            amount=25000.0,
+            quote_amount=25000.0,
         )
 
         assert order.status in ['filled', 'partially_filled']
-        assert order.filled_quantity > 0
+        assert order.filled_base_amount > 0
 
     def test_market_sell_with_existing_orders(self):
         """测试存在限价买单时的市价卖出"""
@@ -51,7 +51,7 @@ class TestMarketOrders:
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
-            quantity=0.5,
+            base_amount=0.5,
         )
 
         # 下市价卖单
@@ -59,11 +59,11 @@ class TestMarketOrders:
             user=self.user1,
             order_type=OrderType.MARKET_SELL,
             trading_pair=TradingPairType.BTC_USDT,
-            amount=25000.0,
+            base_amount=0.5,  # 卖出0.5 BTC
         )
 
         assert order.status in ['filled', 'partially_filled']
-        assert order.filled_quantity > 0
+        assert order.filled_base_amount > 0
 
     def test_market_buy_insufficient_balance(self):
         """测试市价买入余额不足"""
@@ -74,7 +74,7 @@ class TestMarketOrders:
                 user=poor_user,
                 order_type=OrderType.MARKET_BUY,
                 trading_pair=TradingPairType.BTC_USDT,
-                amount=20000.0,  # 超过1000 USDT初始余额
+                quote_amount=20000.0,  # 超过1000 USDT初始余额
             )
 
     def test_market_sell_insufficient_balance(self):
@@ -84,25 +84,26 @@ class TestMarketOrders:
                 user=self.user1,
                 order_type=OrderType.MARKET_SELL,
                 trading_pair=TradingPairType.BTC_USDT,
-                amount=100000.0,  # 需要卖出2 BTC，但只有1 BTC
+                base_amount=100000.0,  # 需要卖出100000 BTC，但只有1 BTC
             )
 
     def test_market_order_with_no_matching_orders(self):
         """测试无匹配订单的市价订单"""
         # 清空订单簿
-        self.exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.BUY].clear()
-        self.exchange.order_books[TradingPairType.BTC_USDT.value][OrderType.SELL].clear()
+        engine = self.exchange.trading_pair_engines[TradingPairType.BTC_USDT.value]
+        engine.buy_orders.clear()
+        engine.sell_orders.clear()
 
         # 下市价买单，应该部分成交或保持未成交状态
         order = self.exchange.place_order(
             user=self.user1,
             order_type=OrderType.MARKET_BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            amount=1000.0,
+            quote_amount=1000.0,
         )
 
         # 没有限价订单，市价订单无法成交
-        assert order.status == 'pending' or order.filled_quantity == 0
+        assert order.status == 'pending' or order.filled_base_amount == 0
 
     def test_market_order_partial_fill(self):
         """测试市价订单部分成交"""
@@ -112,7 +113,7 @@ class TestMarketOrders:
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
             price=50000.0,
-            quantity=0.1,  # 少量卖单
+            base_amount=0.1,  # 少量卖单
         )
 
         # 下大额市价买单，应该部分成交
@@ -120,8 +121,8 @@ class TestMarketOrders:
             user=self.user1,
             order_type=OrderType.MARKET_BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            amount=10000.0,  # 需要0.2 BTC，但只有0.1 BTC卖单
+            quote_amount=10000.0,  # 需要0.2 BTC，但只有0.1 BTC卖单
         )
 
-        assert order.filled_quantity == 0.1
+        assert order.filled_base_amount == 0.1
         assert order.status == 'partially_filled'

@@ -24,8 +24,7 @@ class TestExchangeEdgeCases:
         """测试状态快照功能"""
         snapshot = exchange.get_state_snapshot()
         assert 'assets' in snapshot
-        assert 'trading_pairs' in snapshot
-        assert 'order_books' in snapshot
+        assert 'trading_pair_engines' in snapshot
         assert 'trades' in snapshot
         assert 'orders' in snapshot
         assert 'users' in snapshot
@@ -38,7 +37,7 @@ class TestExchangeEdgeCases:
             user=alice,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -56,7 +55,7 @@ class TestExchangeEdgeCases:
             user=alice,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -80,7 +79,7 @@ class TestExchangeEdgeCases:
             user=alice,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=0.01,
+            base_amount=0.01,
             price=100000.0,  # 正好使用1000 USDT
         )
         assert order is not None
@@ -101,6 +100,6 @@ class TestExchangeEdgeCases:
         """测试获取交易对信息"""
         pair = exchange.get_trading_pair(TradingPairType.BTC_USDT)
         assert pair is not None
-        assert pair.symbol == TradingPairType.BTC_USDT.value
-        assert pair.base_asset == AssetType.BTC
-        assert pair.quote_asset == AssetType.USDT
+        assert pair['symbol'] == 'BTC/USDT'  # 更新为正确的格式
+        assert pair['base_asset'] == AssetType.BTC
+        assert pair['quote_asset'] == AssetType.USDT

@@ -23,7 +23,7 @@ class TestOrderComprehensive:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -31,22 +31,22 @@ class TestOrderComprehensive:
         assert order.user.username == 'testuser'
         assert order.order_type == OrderType.BUY
         assert order.trading_pair == TradingPairType.BTC_USDT
-        assert order.quantity == 1.0
+        assert order.base_amount == 1.0
         assert order.price == 50000.0
 
-    def test_order_remaining_quantity(self):
+    def test_order_remaining_base_amount(self):
         """测试剩余数量计算"""
         user = User(username='testuser', email='test@example.com')
         order = Order(
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.3,
+            filled_base_amount=0.3,
         )
 
-        assert order.remaining_quantity == 0.7
+        assert order.remaining_base_amount == 0.7
 
     def test_order_is_filled(self):
         """测试是否完全成交"""
@@ -57,9 +57,9 @@ class TestOrderComprehensive:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.5,
+            filled_base_amount=0.5,
         )
         assert not order1.is_filled
 
@@ -68,9 +68,9 @@ class TestOrderComprehensive:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=1.0,
+            filled_base_amount=1.0,
         )
         assert order2.is_filled
 
@@ -83,9 +83,9 @@ class TestOrderComprehensive:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.0,
+            filled_base_amount=0.0,
         )
         assert not order1.is_partially_filled
 
@@ -94,9 +94,9 @@ class TestOrderComprehensive:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=0.5,
+            filled_base_amount=0.5,
         )
         assert order2.is_partially_filled
 
@@ -105,9 +105,9 @@ class TestOrderComprehensive:
             user=user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
-            filled_quantity=1.0,
+            filled_base_amount=1.0,
         )
         assert not order3.is_partially_filled
 
@@ -147,7 +147,7 @@ class TestTradeComprehensive:
             user=user1,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -155,7 +155,7 @@ class TestTradeComprehensive:
             user=user2,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=1.0,
+            base_amount=1.0,
             price=50000.0,
         )
 
@@ -163,12 +163,12 @@ class TestTradeComprehensive:
             buy_order=buy_order,
             sell_order=sell_order,
             trading_pair=TradingPairType.BTC_USDT,
-            quantity=0.5,
+            base_amount=0.5,
             price=50000.0,
         )
 
         assert trade.trading_pair == TradingPairType.BTC_USDT
-        assert trade.quantity == 0.5
+        assert trade.base_amount == 0.5
         assert trade.price == 50000.0
         assert trade.buy_order.id == buy_order.id
         assert trade.sell_order.id == sell_order.id
