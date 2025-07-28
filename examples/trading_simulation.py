@@ -123,16 +123,24 @@ class TradingSimulator:
             return False
 
     def simulate_round(self) -> None:
-        """模拟一轮交易 - 简化版本"""
+        """模拟一轮交易 - 包含撤单逻辑"""
         self.round_counter += 1
 
         if not self.users:
             return
 
-        # 随机用户行为 - 只下单，不撤单
+        # 随机用户行为：下单和撤单
         for user in random.sample(self.users, k=len(self.users)):
-            if random.random() < 0.7:  # 70%概率下单
+            # 50%概率下单，30%概率撤单，20%概率什么都不做
+            rand = random.random()
+            if rand < 0.5:  # 50%概率下单
                 self._place_random_order(user)
+            elif rand < 0.8:  # 30%概率撤单
+                self._cancel_random_order(user)
+
+        # 定期清理长时间未成交的订单（每10轮清理一次）
+        if self.round_counter % 10 == 0:
+            self._cleanup_stale_orders()
 
         # 只在轮次结束时记录最终价格
         for pair in self.trading_pairs:
@@ -141,11 +149,11 @@ class TradingSimulator:
 
     def _place_random_order(self, user: User) -> None:
         """随机下单 - 混合使用市价和限价订单"""
-        # 混合使用市价和限价订单类型，市价订单概率更高
-        if random.random() < 0.7:  # 70% 市价订单
-            order_types = [OrderType.MARKET_BUY, OrderType.MARKET_SELL]
-        else:  # 30% 限价订单
+        # 优先使用限价订单以确保流动性，限价订单概率更高
+        if random.random() < 0.7:  # 70% 限价订单
             order_types = [OrderType.BUY, OrderType.SELL]
+        else:  # 30% 市价订单
+            order_types = [OrderType.MARKET_BUY, OrderType.MARKET_SELL]
 
         trading_pair = random.choice(self.trading_pairs)
         order_type = random.choice(order_types)
@@ -229,13 +237,13 @@ class TradingSimulator:
                     )
 
             else:  # 限价订单逻辑
-                # 限价订单的价格在当前价格±5%范围内波动
-                price_fluctuation = random.uniform(-0.05, 0.05)
+                # 限价订单的价格在当前价格±1%范围内波动
+                price_fluctuation = random.uniform(-0.01, 0.01)
                 target_price = current_price * (1 + price_fluctuation)
 
                 if order_type == OrderType.BUY:
                     # 限价买单价格略低于当前价格
-                    target_price = min(target_price, current_price * 0.98)
+                    target_price = min(target_price, current_price * 0.995)
 
                     # 获取USDT可用余额
                     usdt_portfolio = self.exchange.get_user_portfolio(user, AssetType.USDT)
@@ -279,7 +287,7 @@ class TradingSimulator:
 
                 else:  # OrderType.SELL
                     # 限价卖单价格略高于当前价格
-                    target_price = max(target_price, current_price * 1.02)
+                    target_price = max(target_price, current_price * 1.005)
 
                     # 获取资产可用余额
                     asset_portfolio = self.exchange.get_user_portfolio(user, base_asset)
@@ -329,23 +337,46 @@ class TradingSimulator:
         user_orders = [
             order
             for order in self.exchange.orders.values()
-            if order.user.id == user.id and order.status == 'pending'
+            if order.user.id == user.id and order.status in ['pending', 'partially_filled']
         ]
 
         if user_orders:
             order_to_cancel = random.choice(user_orders)
             try:
-                self.exchange.cancel_order(user, order_to_cancel.id)
-
-                # 更新订单历史中的状态
-                for order_record in self.order_history:
-                    if order_record['order_id'] == order_to_cancel.id:
-                        order_record['status'] = 'cancelled'
-                        break
-
-                print(f'轮次{self.round_counter}: {user.username} 撤单 {order_to_cancel.id[:8]}...')
+                success = self.exchange.cancel_order(user, order_to_cancel.id)
+                if success:
+                    print(f'轮次{self.round_counter}: {user.username} 撤单成功')
+                else:
+                    print(f'轮次{self.round_counter}: {user.username} 撤单失败')
             except ValueError as e:
                 print(f'轮次{self.round_counter}: 撤单失败 - {e}')
+
+    def _cleanup_stale_orders(self) -> None:
+        """清理长时间未成交的订单"""
+        stale_orders = []
+
+        for order in self.exchange.orders.values():
+            if order.status in ['pending', 'partially_filled']:
+                # 考虑订单为"过时"的条件：
+                # 1. 限价订单价格偏离当前价格超过15%
+                # 2. 订单创建时间较久（这里简化处理）
+
+                current_price = self.get_current_price(order.trading_pair)
+                if order.price and abs(order.price - current_price) / current_price > 0.15:
+                    stale_orders.append(order)
+
+        # 随机取消部分过时订单
+        if stale_orders:
+            orders_to_cancel = random.sample(
+                stale_orders, min(len(stale_orders), max(1, len(stale_orders) // 3))
+            )
+
+            for order in orders_to_cancel:
+                try:
+                    self.exchange.cancel_order(order.user, order.id)
+                    print(f'轮次{self.round_counter}: 自动清理过时订单')
+                except ValueError:
+                    pass
 
     def run_simulation(self) -> None:
         """运行完整模拟"""
@@ -591,7 +622,7 @@ def main():
     """主函数"""
     simulator = TradingSimulator(
         user_count=5,
-        trading_rounds=500,
+        trading_rounds=5000,
         trading_pairs=[TradingPairType.BTC_USDT, TradingPairType.ETH_USDT],
     )
 

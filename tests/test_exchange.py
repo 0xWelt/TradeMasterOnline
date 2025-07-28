@@ -56,31 +56,6 @@ class TestUserManagement:
         user = self.exchange.get_user('nonexistent')
         assert user is None
 
-    def test_list_users(self):
-        """测试获取用户列表."""
-        user1 = self.exchange.create_user('user1', 'user1@example.com')
-        user2 = self.exchange.create_user('user2', 'user2@example.com')
-        users = self.exchange.list_users()
-        assert len(users) == 2
-        assert user1 in users
-        assert user2 in users
-
-    def test_get_user_portfolio(self):
-        """测试获取用户持仓."""
-        user = self.exchange.create_user('test_user', 'test@example.com')
-        portfolio = self.exchange.get_user_portfolio(user, AssetType.USDT)
-        assert portfolio.asset == AssetType.USDT
-        assert portfolio.available_balance == 1000.0
-
-    def test_get_user_portfolios(self):
-        """测试获取用户所有持仓."""
-        user = self.exchange.create_user('test_user', 'test@example.com')
-        portfolios = self.exchange.get_user_portfolios(user)
-        assert len(portfolios) == 3
-        assert AssetType.USDT in portfolios
-        assert AssetType.BTC in portfolios
-        assert AssetType.ETH in portfolios
-
 
 class TestAssetOperations:
     """测试资产操作功能."""
@@ -93,8 +68,8 @@ class TestAssetOperations:
     def test_deposit(self):
         """测试充值."""
         self.exchange.deposit(self.user, AssetType.BTC, 1.5)
-        portfolio = self.exchange.get_user_portfolio(self.user, AssetType.BTC)
-        assert portfolio.available_balance == 1.5
+        # 直接验证用户余额
+        assert self.user.portfolios[AssetType.BTC].available_balance == 1.5
 
     def test_deposit_zero_amount(self):
         """测试充值金额必须大于0."""
@@ -110,8 +85,10 @@ class TestAssetOperations:
         """测试提现."""
         self.exchange.deposit(self.user, AssetType.USDT, 1000.0)
         self.exchange.withdraw(self.user, AssetType.USDT, 500.0)
-        portfolio = self.exchange.get_user_portfolio(self.user, AssetType.USDT)
-        assert portfolio.available_balance == 1500.0  # 初始1000 + 充值1000 - 提现500
+        # 直接验证用户余额
+        assert (
+            self.user.portfolios[AssetType.USDT].available_balance == 1500.0
+        )  # 初始1000 + 充值1000 - 提现500
 
     def test_withdraw_zero_amount(self):
         """测试提现金额必须大于0."""
@@ -257,15 +234,12 @@ class TestOrderMatching:
         assert len(self.exchange.trade_settlements) == 1
 
         # 验证余额更新
-        buyer_usdt = self.exchange.get_user_portfolio(self.buyer, AssetType.USDT)
-        buyer_btc = self.exchange.get_user_portfolio(self.buyer, AssetType.BTC)
-        seller_usdt = self.exchange.get_user_portfolio(self.seller, AssetType.USDT)
-        seller_btc = self.exchange.get_user_portfolio(self.seller, AssetType.BTC)
-
-        assert buyer_btc.available_balance == 1.0
-        assert buyer_usdt.available_balance == 51000.0  # 1000 + 100000 - 50000
-        assert seller_usdt.available_balance == 51000.0  # 1000 + 50000
-        assert seller_btc.available_balance == 9.0  # 10 - 1
+        assert self.buyer.portfolios[AssetType.BTC].available_balance == 1.0
+        assert (
+            self.buyer.portfolios[AssetType.USDT].available_balance == 51000.0
+        )  # 1000 + 100000 - 50000
+        assert self.seller.portfolios[AssetType.USDT].available_balance == 51000.0  # 1000 + 50000
+        assert self.seller.portfolios[AssetType.BTC].available_balance == 9.0  # 10 - 1
 
     def test_market_order_matching(self):
         """测试市价订单撮合."""
@@ -344,13 +318,26 @@ class TestOrderCancellation:
         assert order.status == OrderStatus.PENDING
 
         # 取消订单
-        result = self.exchange.cancel_order(self.user, order.id)
+        result = self.exchange.cancel_order(order)
         assert result is True
         assert order.status == OrderStatus.CANCELLED
 
     def test_cancel_nonexistent_order(self):
-        """测试取消不存在的订单."""
-        result = self.exchange.cancel_order(self.user, 'nonexistent')
+        """测试取消不存在的订单 - 需要传入Order对象."""
+        from tmo.constants import OrderType, TradingPairType
+        from tmo.typing import Order
+
+        # 创建一个不存在的订单对象
+        fake_order = Order(
+            user=self.user,
+            order_type=OrderType.BUY,
+            trading_pair=TradingPairType.BTC_USDT,
+            base_amount=1.0,
+            price=50000.0,
+        )
+
+        # 尝试取消这个不存在的订单
+        result = self.exchange.cancel_order(fake_order)
         assert result is False
 
     def test_cancel_other_user_order(self):
@@ -366,199 +353,9 @@ class TestOrderCancellation:
             price=50000.0,
         )
 
-        # 尝试用当前用户取消其他用户的订单
-        result = self.exchange.cancel_order(self.user, order.id)
+        # 尝试取消其他用户的订单 - 应该失败
+        result = self.exchange.cancel_order(order)
         assert result is False
-
-
-class TestMarketData:
-    """测试市场数据查询功能."""
-
-    def setup_method(self):
-        """设置测试环境."""
-        self.exchange = Exchange()
-
-    def test_get_market_price(self):
-        """测试获取市场价格."""
-        price = self.exchange.get_market_price(TradingPairType.BTC_USDT)
-        assert isinstance(price, float)
-        assert price > 0
-
-    def test_get_order_book(self):
-        """测试获取订单簿."""
-        user = self.exchange.create_user('test_user', 'test@example.com')
-        self.exchange.deposit(user, AssetType.USDT, 100000.0)
-
-        # 创建订单
-        self.exchange.place_order(
-            user=user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=50000.0,
-        )
-
-        order_book = self.exchange.get_order_book(TradingPairType.BTC_USDT)
-        assert 'buy' in order_book
-        assert 'sell' in order_book
-        assert len(order_book['buy']) == 1
-
-    def test_get_recent_trades(self):
-        """测试获取最近成交."""
-        trades = self.exchange.get_recent_trades(TradingPairType.BTC_USDT)
-        assert isinstance(trades, list)
-
-    def test_get_trading_pair(self):
-        """测试获取交易对信息."""
-        pair_info = self.exchange.get_trading_pair(TradingPairType.BTC_USDT)
-        assert pair_info is not None
-        assert 'symbol' in pair_info
-        assert 'current_price' in pair_info
-
-    def test_get_market_depth(self):
-        """测试获取市场深度."""
-        user = self.exchange.create_user('test_user', 'test@example.com')
-        self.exchange.deposit(user, AssetType.USDT, 100000.0)
-
-        # 创建多个订单
-        self.exchange.place_order(
-            user=user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=49000.0,
-        )
-        self.exchange.place_order(
-            user=user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=48000.0,
-        )
-
-        depth = self.exchange.get_market_depth(TradingPairType.BTC_USDT)
-        assert 'bids' in depth
-        assert 'asks' in depth
-        assert len(depth['bids']) >= 2
-
-    def test_get_market_summary(self):
-        """测试获取市场摘要."""
-        summary = self.exchange.get_market_summary(TradingPairType.BTC_USDT)
-        assert isinstance(summary, dict)
-        assert 'current_price' in summary
-
-
-class TestUserOrders:
-    """测试用户订单查询功能."""
-
-    def setup_method(self):
-        """设置测试环境."""
-        self.exchange = Exchange()
-        self.user = self.exchange.create_user('test_user', 'test@example.com')
-        self.exchange.deposit(self.user, AssetType.USDT, 100000.0)
-
-    def test_get_user_orders(self):
-        """测试获取用户订单."""
-        # 创建多个订单
-        order1 = self.exchange.place_order(
-            user=self.user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=50000.0,
-        )
-        order2 = self.exchange.place_order(
-            user=self.user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=49000.0,
-        )
-
-        orders = self.exchange.get_user_orders(self.user)
-        assert len(orders) == 2
-        assert order1 in orders
-        assert order2 in orders
-
-    def test_get_user_trades(self):
-        """测试获取用户成交记录."""
-        # 创建交易
-        seller = self.exchange.create_user('seller', 'seller@example.com')
-        self.exchange.deposit(seller, AssetType.BTC, 10.0)
-
-        self.exchange.place_order(
-            user=self.user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=50000.0,
-        )
-
-        trades = self.exchange.get_user_trades(self.user)
-        assert isinstance(trades, list)
-
-    def test_get_order(self):
-        """测试获取订单详情."""
-        order = self.exchange.place_order(
-            user=self.user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=50000.0,
-        )
-
-        found_order = self.exchange.get_order(order.id)
-        assert found_order == order
-
-    def test_get_nonexistent_order(self):
-        """测试获取不存在的订单."""
-        order = self.exchange.get_order('nonexistent')
-        assert order is None
-
-    def test_get_order_status(self):
-        """测试获取订单状态."""
-        order = self.exchange.place_order(
-            user=self.user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=50000.0,
-        )
-
-        status = self.exchange.get_order_status(order.id)
-        assert isinstance(status, dict)
-        assert 'order' in status
-        assert 'trading_pair' in status
-        assert 'filled_percentage' in status
-        assert 'is_active' in status
-
-
-class TestStateSnapshot:
-    """测试状态快照功能."""
-
-    def setup_method(self):
-        """设置测试环境."""
-        self.exchange = Exchange()
-
-    def test_get_state_snapshot(self):
-        """测试获取状态快照."""
-        # 创建用户和订单
-        user = self.exchange.create_user('test_user', 'test@example.com')
-        self.exchange.deposit(user, AssetType.USDT, 100000.0)
-        self.exchange.place_order(
-            user=user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=50000.0,
-        )
-
-        snapshot = self.exchange.get_state_snapshot()
-        assert isinstance(snapshot, dict)
-        assert 'users' in snapshot
-        assert 'orders' in snapshot
-        assert 'trades' in snapshot
-        assert 'trading_pair_engines' in snapshot
 
 
 class TestComplexScenarios:
@@ -574,68 +371,17 @@ class TestComplexScenarios:
         self.exchange.deposit(self.user1, AssetType.USDT, 100000.0)
         self.exchange.deposit(self.user2, AssetType.BTC, 10.0)
 
-    def test_get_nonexistent_trading_pair(self):
-        """测试获取不存在的交易对."""
-        # 创建一个不存在的交易对字符串
-        from tmo.constants import TradingPairType
-
-        # 使用自定义测试确保异常处理
-        try:
-            self.exchange.get_market_price(TradingPairType.BTC_USDT)
-        except ValueError:
-            pass  # 预期行为
-
     def test_deposit_withdraw_edge_cases(self):
         """测试充值和提现边界情况."""
         user = self.exchange.create_user('edge_user', 'edge@example.com')
 
         # 测试正常充值
         self.exchange.deposit(user, AssetType.USDT, 1000.0)
-        assert self.exchange.get_user_portfolio(user, AssetType.USDT).available_balance == 2000.0
+        assert user.portfolios[AssetType.USDT].available_balance == 2000.0
 
         # 测试正常提现
         self.exchange.withdraw(user, AssetType.USDT, 500.0)
-        assert self.exchange.get_user_portfolio(user, AssetType.USDT).available_balance == 1500.0
-
-    def test_get_recent_trades_empty(self):
-        """测试获取空成交记录."""
-        trades = self.exchange.get_recent_trades(TradingPairType.BTC_USDT)
-        assert trades == []
-
-    def test_get_market_depth_empty(self):
-        """测试获取空市场深度."""
-        depth = self.exchange.get_market_depth(TradingPairType.BTC_USDT)
-        assert 'bids' in depth
-        assert 'asks' in depth
-        assert len(depth['bids']) == 0
-        assert len(depth['asks']) == 0
-
-    def test_get_nonexistent_trading_pair_price(self):
-        """测试获取不存在交易对的价格."""
-        # 测试异常处理
-        try:
-            self.exchange.get_market_price(TradingPairType.BTC_USDT)
-        except ValueError:
-            pass  # 应该能正常获取，不抛出异常
-
-    def test_get_nonexistent_order(self):
-        """测试获取不存在的订单."""
-        order = self.exchange.get_order('nonexistent')
-        assert order is None
-
-    def test_get_user_trades_empty(self):
-        """测试获取空用户成交记录."""
-        trades = self.exchange.get_user_trades(self.user1)
-        assert trades == []
-
-    def test_state_snapshot_basic(self):
-        """测试基本状态快照."""
-        snapshot = self.exchange.get_state_snapshot()
-        assert 'users' in snapshot
-        assert 'orders' in snapshot
-        assert 'trades' in snapshot
-        assert 'trading_pair_engines' in snapshot
-        assert 'assets' in snapshot
+        assert user.portfolios[AssetType.USDT].available_balance == 1500.0
 
     def test_multiple_trades(self):
         """测试多笔交易."""

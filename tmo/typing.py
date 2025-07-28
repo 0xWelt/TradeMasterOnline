@@ -105,6 +105,42 @@ class User(BaseModel):
                 return datetime.now()
         return v
 
+    def get_available_balance(self, asset: AssetType) -> float:
+        """获取用户指定资产的可用余额。
+
+        Args:
+            asset: 要查询的资产类型。
+
+        Returns:
+            float: 用户在该资产上的可用余额。
+
+        Example:
+            >>> balance = user.get_available_balance(AssetType.BTC)
+            >>> print(balance)
+            1.5
+        """
+        if asset not in self.portfolios:
+            return 0.0
+        return self.portfolios[asset].available_balance
+
+    def get_total_balance(self, asset: AssetType) -> float:
+        """获取用户指定资产的总余额。
+
+        Args:
+            asset: 要查询的资产类型。
+
+        Returns:
+            float: 用户在该资产上的总余额（可用+锁定）。
+
+        Example:
+            >>> balance = user.get_total_balance(AssetType.BTC)
+            >>> print(balance)
+            2.5
+        """
+        if asset not in self.portfolios:
+            return 0.0
+        return self.portfolios[asset].total_balance
+
     def update_balance(
         self, asset: AssetType, available_change: float, locked_change: float
     ) -> None:
@@ -129,8 +165,39 @@ class User(BaseModel):
             )
 
         portfolio = self.portfolios[asset]
-        portfolio.available_balance += available_change
-        portfolio.locked_balance += locked_change
+        new_available = portfolio.available_balance + available_change
+        new_locked = portfolio.locked_balance + locked_change
+
+        # 处理浮点数精度问题，使用1e-10为边界
+        epsilon = 1e-10
+
+        # 处理负余额 - 如果是浮点数精度问题则round到0，否则assert
+        if new_available < 0:
+            if abs(new_available) <= epsilon:
+                # 浮点数精度问题，round到0
+                new_available = 0.0
+                portfolio.available_balance = new_available
+            else:
+                # 真实的负余额，应该触发断言
+                assert new_available >= 0, f'可用余额变为负数: {asset.value} {new_available}'
+        else:
+            portfolio.available_balance = new_available
+
+        # 处理负锁定余额 - 如果是浮点数精度问题则round到0，否则assert
+        if new_locked < 0:
+            if abs(new_locked) <= epsilon:
+                # 浮点数精度问题，round到0
+                new_locked = 0.0
+                portfolio.locked_balance = new_locked
+            else:
+                # 真实的负锁定余额，应该触发断言
+                assert new_locked >= 0, f'锁定余额变为负数: {asset.value} {new_locked}'
+        else:
+            portfolio.locked_balance = new_locked
+
+        # 确保最终值不为负
+        portfolio.available_balance = max(0.0, portfolio.available_balance)
+        portfolio.locked_balance = max(0.0, portfolio.locked_balance)
 
 
 class Order(BaseModel):
@@ -346,6 +413,7 @@ class Order(BaseModel):
         """订单取消时的回调方法。
 
         当订单被取消时，释放被该订单锁定的资产。
+        让Portfolio层处理精度检查和边界条件。
         """
         if self.user is None:
             return
@@ -355,11 +423,12 @@ class Order(BaseModel):
             if self.price is not None and self.base_amount is not None:
                 locked_amount = self.remaining_base_amount * self.price
             elif self.quote_amount is not None:
-                # 对于使用quote_amount的订单，释放全部quote_amount
-                locked_amount = self.quote_amount
+                # 对于使用quote_amount的订单，释放剩余未成交的金额
+                locked_amount = self.remaining_quote_amount
             else:
                 locked_amount = 0.0
 
+            # 让Portfolio层处理精度检查和负值处理
             self.user.update_balance(
                 asset=AssetType(self.trading_pair.quote_asset.value),
                 available_change=locked_amount,
@@ -369,10 +438,13 @@ class Order(BaseModel):
             # 释放锁定的基础资产
             if self.base_amount is not None:
                 locked_amount = self.remaining_base_amount
+            elif self.quote_amount is not None and self.price is not None:
+                # 对于使用quote_amount的卖单，计算剩余的基础资产数量
+                locked_amount = self.remaining_quote_amount / self.price
             else:
-                # 对于使用quote_amount的卖单，需要计算基础资产数量
-                locked_amount = 0.0  # 这种情况应在交易引擎中处理
+                locked_amount = 0.0
 
+            # 让Portfolio层处理精度检查和负值处理
             self.user.update_balance(
                 asset=AssetType(self.trading_pair.base_asset.value),
                 available_change=locked_amount,
@@ -387,6 +459,9 @@ class TradeSettlement(BaseModel):
     """
 
     model_config = {'extra': 'forbid'}
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), frozen=True)
+    """交易唯一标识符，由系统自动生成UUID。"""
 
     buy_order: Order = Field(frozen=True)
     """买单对象，包含完整的买单信息。"""
@@ -406,12 +481,12 @@ class TradeSettlement(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.now, frozen=True)
     """成交时间，记录交易发生的时间戳。"""
 
-    @field_validator('timestamp', mode='before')
+    @field_validator('id', 'timestamp', mode='before')
     @classmethod
     def _validate_auto_generated_fields(cls, v: object, info: ValidationInfo) -> object:
         """验证自动生成的字段。
 
-        对于系统自动生成的timestamp字段，忽略用户提供的值，
+        对于系统自动生成的字段（id和timestamp），忽略用户提供的值，
         始终使用系统默认值。
 
         Args:
@@ -421,8 +496,12 @@ class TradeSettlement(BaseModel):
         Returns:
             object: 处理后的字段值。
         """
-        if v is not None and info.field_name == 'timestamp':
-            return datetime.now()
+        if v is not None:
+            # 忽略用户提供的值，使用默认值
+            if info.field_name == 'id':
+                return str(uuid.uuid4())
+            elif info.field_name == 'timestamp':
+                return datetime.now()
         return v
 
     @property

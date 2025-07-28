@@ -156,5 +156,9 @@ inline-quotes = "single"
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "all"
 
-[dependency-groups]
-dev = []
+[tool.pytest.ini_options]
+timeout = 30
+addopts = "--tb=short --strict-markers"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
