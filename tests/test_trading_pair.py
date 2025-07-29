@@ -53,109 +53,98 @@ class TestOrderManagement:
 
     def test_add_limit_buy_order(self):
         """测试添加限价买单."""
-        order = Order(
+        order = self.engine.place_order(
             user=self.user,
             order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=50000.0,
         )
-        self.engine.add_order(order)
         assert len(self.engine.buy_orders) == 1
         assert self.engine.buy_orders[0] == order
 
     def test_add_limit_sell_order(self):
         """测试添加限价卖单."""
-        order = Order(
+        order = self.engine.place_order(
             user=self.user,
             order_type=OrderType.SELL,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=51000.0,
         )
-        self.engine.add_order(order)
         assert len(self.engine.sell_orders) == 1
         assert self.engine.sell_orders[0] == order
 
     def test_add_market_buy_order(self):
         """测试添加市价买单."""
-        order = Order(
+        order = self.engine.place_order(
             user=self.user,
             order_type=OrderType.MARKET_BUY,
-            trading_pair=TradingPairType.BTC_USDT,
             quote_amount=1000.0,
         )
-        self.engine.add_order(order)
         assert len(self.engine.market_buy_orders) == 1
         assert self.engine.market_buy_orders[0] == order
 
     def test_add_market_sell_order(self):
         """测试添加市价卖单."""
-        order = Order(
+        order = self.engine.place_order(
             user=self.user,
             order_type=OrderType.MARKET_SELL,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
         )
-        self.engine.add_order(order)
         assert len(self.engine.market_sell_orders) == 1
         assert self.engine.market_sell_orders[0] == order
 
     def test_remove_order(self):
         """测试移除订单."""
-        order = Order(
+        order = self.engine.place_order(
             user=self.user,
             order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
-            price=50000.0,
+            price=48000.0,  # 使用不会匹配的价格
         )
-        self.engine.add_order(order)
         assert len(self.engine.buy_orders) == 1
 
-        result = self.engine.remove_order(order)
+        result = self.engine.cancel_order(order)
         assert result is True
         assert len(self.engine.buy_orders) == 0
 
     def test_remove_nonexistent_order(self):
         """测试移除不存在的订单."""
-        order = Order(
+        from tmo.constants import OrderType, TradingPairType
+
+        # 创建一个不存在的订单对象
+        fake_order = Order(
             user=self.user,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=50000.0,
         )
-        result = self.engine.remove_order(order)
+        result = self.engine.cancel_order(fake_order)
         assert result is False
 
     def test_buy_order_sorting(self):
         """测试买单价格排序（降序）."""
-        order1 = Order(
+        # 为用户充值足够的USDT
+        self.user.update_balance(AssetType.USDT, 200000.0, 0.0)
+
+        self.engine.place_order(
             user=self.user,
             order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=49000.0,
         )
-        order2 = Order(
+        self.engine.place_order(
             user=self.user,
             order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=51000.0,
         )
-        order3 = Order(
+        self.engine.place_order(
             user=self.user,
             order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=50000.0,
         )
-
-        self.engine.add_order(order1)
-        self.engine.add_order(order2)
-        self.engine.add_order(order3)
 
         assert self.engine.buy_orders[0].price == 51000.0
         assert self.engine.buy_orders[1].price == 50000.0
@@ -163,31 +152,27 @@ class TestOrderManagement:
 
     def test_sell_order_sorting(self):
         """测试卖单价格排序（升序）."""
-        order1 = Order(
+        # 为用户充值足够的BTC
+        self.user.update_balance(AssetType.BTC, 10.0, 0.0)
+
+        self.engine.place_order(
             user=self.user,
             order_type=OrderType.SELL,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=51000.0,
         )
-        order2 = Order(
+        self.engine.place_order(
             user=self.user,
             order_type=OrderType.SELL,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=49000.0,
         )
-        order3 = Order(
+        self.engine.place_order(
             user=self.user,
             order_type=OrderType.SELL,
-            trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=50000.0,
         )
-
-        self.engine.add_order(order1)
-        self.engine.add_order(order2)
-        self.engine.add_order(order3)
 
         assert self.engine.sell_orders[0].price == 49000.0
         assert self.engine.sell_orders[1].price == 50000.0
@@ -482,8 +467,8 @@ class TestMarketData:
     def test_get_order_book_empty(self):
         """测试空订单簿."""
         order_book = self.engine.get_order_book()
-        assert order_book['bids'] == []
-        assert order_book['asks'] == []
+        assert order_book.bids == []
+        assert order_book.asks == []
 
     def test_get_order_book_with_orders(self):
         """测试带订单的订单簿."""
@@ -492,22 +477,22 @@ class TestMarketData:
             user=self.user,
             order_type=OrderType.BUY,
             base_amount=1.0,
-            price=49000.0,  # 低于卖单价格，不会匹配
+            price=48000.0,  # 低于卖单价格，不会匹配
         )
         self.engine.place_order(
             user=self.user,
             order_type=OrderType.SELL,
             base_amount=1.0,
-            price=51000.0,
+            price=52000.0,
         )
 
         order_book = self.engine.get_order_book()
-        assert len(order_book['bids']) == 1
-        assert order_book['bids'][0]['price'] == 49000.0
-        assert order_book['bids'][0]['quantity'] == 1.0
-        assert len(order_book['asks']) == 1
-        assert order_book['asks'][0]['price'] == 51000.0
-        assert order_book['asks'][0]['quantity'] == 1.0
+        assert len(order_book.bids) == 1
+        assert order_book.bids[0].price == 48000.0
+        assert order_book.bids[0].quantity == 1.0
+        assert len(order_book.asks) == 1
+        assert order_book.asks[0].price == 52000.0
+        assert order_book.asks[0].quantity == 1.0
 
     def test_get_recent_trades_empty(self):
         """测试空成交记录."""
@@ -623,14 +608,21 @@ class TestOrderBookCleanup:
 
     def test_cleanup_filled_orders(self):
         """测试清理已成交订单."""
+        # 创建两个不同价格的订单避免价格交叉
+        buyer = User(username='buyer', email='buyer@example.com')
+        seller = User(username='seller', email='seller@example.com')
+
+        buyer.update_balance(AssetType.USDT, 100000.0, 0.0)
+        seller.update_balance(AssetType.BTC, 10.0, 0.0)
+
         self.engine.place_order(
-            user=self.user,
+            user=buyer,
             order_type=OrderType.BUY,
             base_amount=1.0,
             price=50000.0,
         )
         self.engine.place_order(
-            user=self.user,
+            user=seller,
             order_type=OrderType.SELL,
             base_amount=1.0,
             price=50000.0,
@@ -645,14 +637,20 @@ class TestOrderBookCleanup:
 
     def test_cleanup_partially_filled_orders(self):
         """测试不清理部分成交订单."""
+        buyer = User(username='buyer', email='buyer@example.com')
+        seller = User(username='seller', email='seller@example.com')
+
+        buyer.update_balance(AssetType.USDT, 100000.0, 0.0)
+        seller.update_balance(AssetType.BTC, 10.0, 0.0)
+
         self.engine.place_order(
-            user=self.user,
+            user=buyer,
             order_type=OrderType.BUY,
             base_amount=2.0,
             price=50000.0,
         )
         self.engine.place_order(
-            user=self.user,
+            user=seller,
             order_type=OrderType.SELL,
             base_amount=1.0,
             price=50000.0,
@@ -725,18 +723,18 @@ class TestEdgeCases:
                 user=self.user,
                 order_type=OrderType.BUY,
                 base_amount=1.0,
-                price=49000.0 + i * 100,
+                price=48000.0 + i * 100,
             )
             self.engine.place_order(
                 user=self.user,
                 order_type=OrderType.SELL,
                 base_amount=1.0,
-                price=51000.0 + i * 100,
+                price=53000.0 + i * 100,
             )
 
         order_book = self.engine.get_order_book()
-        assert len(order_book['bids']) == 10
-        assert len(order_book['asks']) == 10
+        assert len(order_book.bids) == 10
+        assert len(order_book.asks) == 10
 
     def test_symbol_property(self):
         """测试交易对符号属性."""
@@ -752,5 +750,5 @@ class TestEdgeCases:
         """测试不同交易对的订单簿."""
         eth_usdt = TradingPairEngine(TradingPairType.ETH_USDT)
         order_book = eth_usdt.get_order_book()
-        assert order_book['bids'] == []
-        assert order_book['asks'] == []
+        assert order_book.bids == []
+        assert order_book.asks == []
