@@ -4,7 +4,7 @@ import pytest
 
 from tmo.constants import AssetType, OrderStatus, OrderType, TradingPairType
 from tmo.trading_pair import TradingPairEngine
-from tmo.typing import User
+from tmo.user import User
 
 
 class TestPriceCrossingValidation:
@@ -12,11 +12,13 @@ class TestPriceCrossingValidation:
 
     def setup_method(self):
         """设置测试环境."""
-        self.engine = TradingPairEngine(TradingPairType.BTC_USDT)
+        self.users = {}
+        self.engine = TradingPairEngine(TradingPairType.BTC_USDT, self.users)
         self.user = User(username='test_user', email='test@example.com')
+        self.users[self.user.id] = self.user
         # 为用户初始化足够的余额
-        self.user.update_balance(AssetType.USDT, 100000.0, 0.0)
-        self.user.update_balance(AssetType.BTC, 10.0, 0.0)
+        self.user.update_total_asset(AssetType.USDT, 100000.0)
+        self.user.update_total_asset(AssetType.BTC, 10.0)
 
     def test_buy_order_below_sell_order_allowed(self):
         """测试买单价格低于卖单价格允许."""
@@ -179,8 +181,8 @@ class TestPriceCrossingValidation:
     def test_different_users_no_interference(self):
         """测试不同用户互不干扰."""
         user2 = User(username='user2', email='user2@example.com')
-        user2.update_balance(AssetType.USDT, 100000.0, 0.0)
-        user2.update_balance(AssetType.BTC, 10.0, 0.0)
+        user2.update_total_asset(AssetType.USDT, 100000.0)
+        user2.update_total_asset(AssetType.BTC, 10.0)
 
         # 用户1创建买单
         user1_buy = self.engine.place_order(

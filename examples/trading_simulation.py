@@ -8,8 +8,7 @@ import random
 
 import plotly.graph_objects as go
 
-from tmo import AssetType, Exchange, OrderType, TradingPairType
-from tmo.typing import User
+from tmo import AssetType, Exchange, OrderType, TradingPairType, User
 
 
 class TradingSimulator:
@@ -48,7 +47,7 @@ class TradingSimulator:
 
         # 初始化价格历史
         for pair in self.trading_pairs:
-            self.price_history[pair.value] = []
+            self.price_history[str(pair.value)] = []
 
     def create_random_users(self) -> None:
         """创建随机用户"""
@@ -84,16 +83,17 @@ class TradingSimulator:
 
         for user in self.users:
             # 给每个用户分配固定数量的三种资产
-            self.exchange.deposit(user, AssetType.USDT, usdt_amount)
-            self.exchange.deposit(user, AssetType.BTC, btc_amount)
-            self.exchange.deposit(user, AssetType.ETH, eth_amount)
+            user.deposit(AssetType.USDT, usdt_amount)
+            user.deposit(AssetType.BTC, btc_amount)
+            user.deposit(AssetType.ETH, eth_amount)
             print(
                 f'用户 {user.username} 充值: {usdt_amount} USDT, {btc_amount} BTC, {eth_amount} ETH'
             )
 
     def get_current_price(self, trading_pair: TradingPairType) -> float:
         """获取当前价格"""
-        return self.exchange.get_market_price(trading_pair)
+        trading_pair_engine = self.exchange.get_trading_pair(trading_pair)
+        return trading_pair_engine.get_current_price()
 
     def can_place_order(
         self,
@@ -107,17 +107,15 @@ class TradingSimulator:
         try:
             if order_type in [OrderType.MARKET_BUY, OrderType.BUY]:
                 # 检查USDT余额
-                usdt_portfolio = self.exchange.get_user_portfolio(user, AssetType.USDT)
                 # 对于市价订单，使用当前价格估算
                 if price == 0.0:
                     price = self.get_current_price(trading_pair)
                 required_amount = quantity * price
-                return usdt_portfolio.available_balance >= required_amount
+                return user.get_available_balance(AssetType.USDT) >= required_amount
             else:  # SELL or MARKET_SELL
                 # 检查资产余额
                 asset = trading_pair.base_asset
-                asset_portfolio = self.exchange.get_user_portfolio(user, asset)
-                return asset_portfolio.available_balance >= quantity
+                return user.get_available_balance(asset) >= quantity
         except ValueError as e:
             print(f'检查订单合法性失败: {e}')
             return False
@@ -144,7 +142,7 @@ class TradingSimulator:
 
         # 只在轮次结束时记录最终价格
         for pair in self.trading_pairs:
-            engine = self.exchange.trading_pair_engines[pair.value]
+            engine = self.exchange.get_trading_pair(pair)
             self.price_history[pair.value].append((self.round_counter, engine.current_price))
 
     def _place_random_order(self, user: User) -> None:
@@ -168,8 +166,7 @@ class TradingSimulator:
                 # 市价订单逻辑 - 完全修复版本
                 if order_type == OrderType.MARKET_BUY:
                     # 获取USDT可用余额
-                    usdt_portfolio = self.exchange.get_user_portfolio(user, AssetType.USDT)
-                    max_usdt = usdt_portfolio.available_balance
+                    max_usdt = user.get_available_balance(AssetType.USDT)
 
                     if max_usdt <= 0:
                         return
@@ -184,10 +181,10 @@ class TradingSimulator:
                     if amount <= 0:
                         return
 
-                    order = self.exchange.place_order(
+                    trading_pair_engine = self.exchange.get_trading_pair(trading_pair)
+                    order = trading_pair_engine.place_order(
                         user=user,
                         order_type=order_type,
-                        trading_pair=trading_pair,
                         quote_amount=amount,
                     )
                     execution_msg = ''
@@ -199,8 +196,7 @@ class TradingSimulator:
 
                 else:  # MARKET_SELL
                     # 获取基础资产可用余额
-                    asset_portfolio = self.exchange.get_user_portfolio(user, base_asset)
-                    max_quantity = asset_portfolio.available_balance
+                    max_quantity = user.get_available_balance(base_asset)
 
                     if max_quantity <= 0:
                         return
@@ -223,10 +219,10 @@ class TradingSimulator:
                     if sell_quantity <= 0:
                         return
 
-                    order = self.exchange.place_order(
+                    trading_pair_engine = self.exchange.get_trading_pair(trading_pair)
+                    order = trading_pair_engine.place_order(
                         user=user,
                         order_type=order_type,
-                        trading_pair=trading_pair,
                         base_amount=sell_quantity,
                     )
                     execution_msg = ''
@@ -246,8 +242,7 @@ class TradingSimulator:
                     target_price = min(target_price, current_price * 0.995)
 
                     # 获取USDT可用余额
-                    usdt_portfolio = self.exchange.get_user_portfolio(user, AssetType.USDT)
-                    max_usdt = usdt_portfolio.available_balance
+                    max_usdt = user.get_available_balance(AssetType.USDT)
 
                     if max_usdt <= 0:
                         return
@@ -271,10 +266,10 @@ class TradingSimulator:
                         return
                     price = target_price
 
-                    order = self.exchange.place_order(
+                    trading_pair_engine = self.exchange.get_trading_pair(trading_pair)
+                    order = trading_pair_engine.place_order(
                         user=user,
                         order_type=order_type,
-                        trading_pair=trading_pair,
                         base_amount=quantity,
                         price=price,
                     )
@@ -290,8 +285,7 @@ class TradingSimulator:
                     target_price = max(target_price, current_price * 1.005)
 
                     # 获取资产可用余额
-                    asset_portfolio = self.exchange.get_user_portfolio(user, base_asset)
-                    max_quantity = asset_portfolio.available_balance
+                    max_quantity = user.get_available_balance(base_asset)
 
                     if max_quantity <= 0:
                         return
@@ -315,10 +309,10 @@ class TradingSimulator:
                         return
                     price = target_price
 
-                    order = self.exchange.place_order(
+                    trading_pair_engine = self.exchange.get_trading_pair(trading_pair)
+                    order = trading_pair_engine.place_order(
                         user=user,
                         order_type=order_type,
-                        trading_pair=trading_pair,
                         base_amount=quantity,
                         price=price,
                     )
@@ -334,16 +328,33 @@ class TradingSimulator:
 
     def _cancel_random_order(self, user: User) -> None:
         """随机撤单"""
-        user_orders = [
-            order
-            for order in self.exchange.orders.values()
-            if order.user.id == user.id and order.status in ['pending', 'partially_filled']
-        ]
+        user_orders = []
+
+        # 收集用户在所有交易对中的订单
+        for pair in self.trading_pairs:
+            engine = self.exchange.get_trading_pair(pair)
+
+            # 收集限价订单和市价订单
+            order_lists = [
+                engine.orders[OrderType.BUY],
+                engine.orders[OrderType.SELL],
+                engine.orders[OrderType.MARKET_BUY],
+                engine.orders[OrderType.MARKET_SELL],
+            ]
+            user_orders.extend(
+                order
+                for order_list in order_lists
+                for order in order_list
+                if order.user_id == user.id
+                and order.status.value in ['pending', 'partially_filled']
+            )
 
         if user_orders:
             order_to_cancel = random.choice(user_orders)
             try:
-                success = self.exchange.cancel_order(user, order_to_cancel.id)
+                # 获取对应的交易对引擎来取消订单
+                engine = self.exchange.get_trading_pair(order_to_cancel.trading_pair)
+                success = engine.cancel_order(order_to_cancel, user)
                 if success:
                     print(f'轮次{self.round_counter}: {user.username} 撤单成功')
                 else:
@@ -355,15 +366,27 @@ class TradingSimulator:
         """清理长时间未成交的订单"""
         stale_orders = []
 
-        for order in self.exchange.orders.values():
-            if order.status in ['pending', 'partially_filled']:
-                # 考虑订单为"过时"的条件：
-                # 1. 限价订单价格偏离当前价格超过15%
-                # 2. 订单创建时间较久（这里简化处理）
+        # 收集所有交易对中的过时订单
+        for pair in self.trading_pairs:
+            engine = self.exchange.get_trading_pair(pair)
 
-                current_price = self.get_current_price(order.trading_pair)
-                if order.price and abs(order.price - current_price) / current_price > 0.15:
-                    stale_orders.append(order)
+            # 检查所有订单列表
+            order_lists = [
+                engine.orders[OrderType.BUY],
+                engine.orders[OrderType.SELL],
+                engine.orders[OrderType.MARKET_BUY],
+                engine.orders[OrderType.MARKET_SELL],
+            ]
+            stale_orders.extend(
+                order
+                for order_list in order_lists
+                for order in order_list
+                if order.status.value in ['pending', 'partially_filled']
+                and order.price
+                and abs(order.price - self.get_current_price(order.trading_pair))
+                / self.get_current_price(order.trading_pair)
+                > 0.15
+            )
 
         # 随机取消部分过时订单
         if stale_orders:
@@ -373,7 +396,8 @@ class TradingSimulator:
 
             for order in orders_to_cancel:
                 try:
-                    self.exchange.cancel_order(order.user, order.id)
+                    engine = self.exchange.get_trading_pair(order.trading_pair)
+                    engine.cancel_order(order, order.user)  # 使用订单关联的用户
                     print(f'轮次{self.round_counter}: 自动清理过时订单')
                 except ValueError:
                     pass
@@ -610,11 +634,14 @@ class TradingSimulator:
         # 用户持仓
         for user in self.users:
             print(f'\n用户: {user.username}')
-            for asset_type, portfolio in user.portfolios.items():
-                if portfolio.total_balance > 0:
+            for asset_type in AssetType:
+                total_balance = user.get_total_balance(asset_type)
+                if total_balance > 0:
+                    available_balance = user.get_available_balance(asset_type)
+                    locked_balance = user.get_locked_balance(asset_type)
                     print(
-                        f'  {asset_type.value}: 可用 {portfolio.available_balance:.4f}, '
-                        f'锁定 {portfolio.locked_balance:.4f}, 总计 {portfolio.total_balance:.4f}'
+                        f'  {asset_type.value}: 可用 {available_balance:.4f}, '
+                        f'锁定 {locked_balance:.4f}, 总计 {total_balance:.4f}'
                     )
 
 

@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from loguru import logger
 
-from .constants import AssetType, OrderType, TradingPairType
+from .constants import TradingPairType
 from .trading_pair import TradingPairEngine
-from .typing import Asset, Order, Portfolio, User
+from .user import User
 
 
 class Exchange:
@@ -28,27 +28,18 @@ class Exchange:
         """初始化交易所。
 
         设置交易所的初始状态，包括：
-        - 创建默认资产（USDT、BTC、ETH）
         - 初始化交易对和初始价格
         - 设置空的订单簿和交易记录
         - 初始化用户管理
         """
-        # 支持的资产
-        self.assets: dict[AssetType, Asset] = {
-            AssetType.USDT: Asset(
-                symbol=AssetType.USDT, name='Tether USD', description='美元稳定币'
-            ),
-            AssetType.BTC: Asset(symbol=AssetType.BTC, name='Bitcoin', description='比特币'),
-            AssetType.ETH: Asset(symbol=AssetType.ETH, name='Ethereum', description='以太坊'),
-        }
+        # 用户管理
+        self.users: dict[str, User] = {}
 
         # 交易对引擎 - 使用新的TradingPair类管理每个交易对
         self.trading_pair_engines: dict[str, TradingPairEngine] = {
-            pair.value: TradingPairEngine(trading_pair_type=pair) for pair in TradingPairType
+            pair.value: TradingPairEngine(trading_pair_type=pair, users=self.users)
+            for pair in TradingPairType
         }
-
-        # 用户管理
-        self.users: dict[str, User] = {}
 
     # ====================
     # 用户管理
@@ -81,17 +72,8 @@ class Exchange:
                 raise ValueError(f'用户名已存在: {username}')
 
         user = User(username=username, email=email)
-
-        # 初始化用户持仓
-        for asset_type in self.assets:
-            user.portfolios[asset_type] = Portfolio(
-                asset=asset_type,
-                available_balance=1000.0 if asset_type == AssetType.USDT else 0.0,  # 初始USDT余额
-                locked_balance=0.0,
-            )
-
         self.users[user.id] = user
-        logger.debug(f'创建用户: {username} ({email}) - 初始USDT余额: 1000.0')
+        logger.debug(f'创建用户: {username} ({email})')
         return user
 
     def get_user(self, user_id: str) -> User | None:
@@ -107,95 +89,35 @@ class Exchange:
         """
         return self.users.get(user_id)
 
-    def deposit(self, user: User, asset: AssetType, amount: float) -> None:
-        """用户充值。
-
-        为用户指定资产增加可用余额，模拟用户充值资产到交易所。
-
-        Args:
-            user: 要充值的用户对象。
-            asset: 要充值的资产类型。
-            amount: 充值金额，必须大于0。
-
-        Raises:
-            ValueError: 如果充值金额小于等于0。
-        """
-        if amount <= 0:
-            raise ValueError('充值金额必须大于0')
-
-        portfolio = user.portfolios[asset]
-        portfolio.available_balance += amount
-
-        logger.debug(f'用户 {user.username} 充值 {amount} {asset.value}')
-
-    def withdraw(self, user: User, asset: AssetType, amount: float) -> None:
-        """用户提现。
-
-        从用户指定资产的可用余额中扣除相应金额，模拟用户从交易所提现。
-
-        Args:
-            user: 要提现的用户对象。
-            asset: 要提现的资产类型。
-            amount: 提现金额，必须大于0。
-
-        Raises:
-            ValueError: 如果提现金额小于等于0，或用户可用余额不足。
-        """
-        if amount <= 0:
-            raise ValueError('提现金额必须大于0')
-
-        portfolio = user.portfolios[asset]
-        if portfolio.available_balance < amount:
-            raise ValueError('可用余额不足')
-
-        portfolio.available_balance -= amount
-
-        logger.debug(f'用户 {user.username} 提现 {amount} {asset.value}')
-
     # ====================
     # 交易
     # ====================
 
-    def place_order(
-        self,
-        user: User,
-        order_type: OrderType,
-        trading_pair: TradingPairType,
-        base_amount: float | None = None,
-        price: float | None = None,
-        quote_amount: float | None = None,
-    ) -> Order:
-        """下单并立即执行匹配。
+    def get_trading_pair(self, trading_pair: TradingPairType | str) -> TradingPairEngine:
+        """获取指定交易对的交易引擎。
 
-        委托给对应的TradingPairEngine处理所有订单逻辑。
+        Args:
+            trading_pair: 交易对类型或交易对字符串。
+
+        Returns:
+            TradingPairEngine: 对应的交易对引擎。
+
+        Raises:
+            ValueError: 如果交易对不支持。
+
+        Example:
+            >>> exchange = Exchange()
+            >>> trading_pair = exchange.get_trading_pair(TradingPairType.BTC_USDT)
+            >>> order = trading_pair.place_order(user, OrderType.BUY, base_amount=1.0, price=50000.0)
         """
-        # 验证用户合法性
-        if user.id not in self.users or user != self.users[user.id]:
-            raise ValueError('无效用户或用户对象不一致')
+        if isinstance(trading_pair, str):
+            # 处理字符串输入
+            try:
+                trading_pair = TradingPairType(trading_pair)
+            except ValueError as e:
+                raise ValueError(f'不支持的交易对: {trading_pair}') from e
 
-        # 验证交易对类型
         if trading_pair.value not in self.trading_pair_engines:
             raise ValueError(f'不支持的交易对: {trading_pair.value}')
 
-        # 使用交易对引擎处理订单
-        pair_symbol = trading_pair.value
-        trading_pair_engine = self.trading_pair_engines[pair_symbol]
-
-        # 委托给交易对引擎处理订单
-        return trading_pair_engine.place_order(
-            user=user,
-            order_type=order_type,
-            base_amount=base_amount,
-            price=price,
-            quote_amount=quote_amount,
-        )
-
-    def cancel_order(self, order: Order) -> bool:
-        """取消订单。
-
-        委托给对应的TradingPairEngine处理所有订单逻辑。
-        """
-        # 使用交易对引擎处理取消订单
-        pair_symbol = order.trading_pair.value
-        trading_pair_engine = self.trading_pair_engines[pair_symbol]
-        return trading_pair_engine.cancel_order(order)
+        return self.trading_pair_engines[trading_pair.value]

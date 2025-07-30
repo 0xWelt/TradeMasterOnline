@@ -3,6 +3,8 @@
 该模块集中定义所有枚举类型，便于统一管理和维护。
 """
 
+from __future__ import annotations
+
 from enum import StrEnum
 
 
@@ -21,6 +23,13 @@ class AssetType(StrEnum):
             AssetType.BTC: 50000.0,  # BTC初始价值为50000 USDT
             AssetType.ETH: 3000.0,  # ETH初始价值为3000 USDT
         }[self]
+
+    @property
+    def trading_pairs(self) -> list[TradingPairType]:
+        """获取与该资产相关的所有交易对"""
+        return [
+            pair for pair in TradingPairType if pair.base_asset == self or pair.quote_asset == self
+        ]
 
 
 class OrderType(StrEnum):
@@ -62,9 +71,9 @@ class TradingPairType(StrEnum):
 
     @property
     def initial_price(self) -> float:
-        """获取交易对的初始价格"""
-        return {
-            TradingPairType.BTC_USDT: 50000.0,  # 1 BTC = 50000 USDT
-            TradingPairType.ETH_USDT: 3000.0,  # 1 ETH = 3000 USDT
-            TradingPairType.ETH_BTC: 0.06,  # 1 ETH = 0.06 BTC
-        }[self]
+        """获取交易对的初始价格，根据资产初始价格计算"""
+        base_asset = self.base_asset
+        quote_asset = self.quote_asset
+
+        # 计算汇率：基础资产价格 / 计价资产价格
+        return base_asset.initial_value / quote_asset.initial_value

@@ -1,6 +1,7 @@
 uv.lock
 junit.xml
 .DS_Store
+.mcp.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

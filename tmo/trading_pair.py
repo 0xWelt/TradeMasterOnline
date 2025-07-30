@@ -16,7 +16,7 @@ from .typing import Order, TradeSettlement
 
 
 if TYPE_CHECKING:
-    from .typing import User
+    from .user import User
 
 
 class OrderBookLevel(BaseModel):
@@ -58,29 +58,30 @@ class TradingPairEngine:
         quote_asset: 计价资产类型（如USDT）。
         current_price: 当前市场价格，基于最新成交价。
         last_update: 价格最后更新时间。
-        buy_orders: 限价买单列表，按价格降序排列。
-        sell_orders: 限价卖单列表，按价格升序排列。
-        market_buy_orders: 市价买单列表。
-        market_sell_orders: 市价卖单列表。
+        orders: 订单字典，按订单类型分类存储所有订单。
         trade_history: 交易历史记录，最多保留1000条。
     """
 
-    def __init__(self, trading_pair_type: TradingPairType):
+    def __init__(self, trading_pair_type: TradingPairType, users: dict[str, User]):
         """初始化交易对引擎。
 
         Args:
             trading_pair_type: 交易对类型，定义基础资产和计价资产。
+            users: 用户字典，用于通过user_id查找用户对象。
         """
         self.base_asset = trading_pair_type.base_asset
         self.quote_asset = trading_pair_type.quote_asset
         self.current_price = trading_pair_type.initial_price
         self.last_update = datetime.now()
+        self.users = users
 
-        # 订单簿
-        self.buy_orders: list[Order] = []
-        self.sell_orders: list[Order] = []
-        self.market_buy_orders: list[Order] = []
-        self.market_sell_orders: list[Order] = []
+        # 订单簿 - 使用字典统一管理
+        self.orders: dict[OrderType, list[Order]] = {
+            OrderType.BUY: [],
+            OrderType.SELL: [],
+            OrderType.MARKET_BUY: [],
+            OrderType.MARKET_SELL: [],
+        }
         self.trade_history: list[TradeSettlement] = []
 
     # ====================
@@ -115,12 +116,12 @@ class TradingPairEngine:
         Raises:
             ValueError: 参数不合法、余额不足或价格交叉。
         """
-        self._validate_order_parameters(order_type, base_amount, price, quote_amount)
+        # Pydantic会自动验证订单参数，这里只需要验证余额和价格交叉
         self._validate_user_balance(user, order_type, base_amount, price, quote_amount)
         self._validate_price_crossing(user, order_type, price)
 
         order = Order(
-            user=user,
+            user_id=user.id,
             order_type=order_type,
             trading_pair=TradingPairType(f'{self.base_asset.value}/{self.quote_asset.value}'),
             base_amount=base_amount,
@@ -130,10 +131,11 @@ class TradingPairEngine:
 
         self._freeze_assets_for_order(user, order_type, base_amount, price, quote_amount)
         self._insert_order(order)
+        user.add_active_order(order)
         self._match_orders()
         return order
 
-    def cancel_order(self, order: Order) -> bool:
+    def cancel_order(self, order: Order, user: User) -> bool:
         """取消订单。
 
         从订单簿中移除订单并释放冻结的资产。
@@ -148,8 +150,9 @@ class TradingPairEngine:
             return False
         removed = self._remove_order(order)
         if removed:
-            self._release_frozen_assets(order.user, order)
+            self._release_frozen_assets(user, order)
             order.status = OrderStatus.CANCELLED
+            user.move_order_to_completed(order)
         return removed
 
     def get_order_book(self) -> OrderBookSnapshot:
@@ -160,11 +163,11 @@ class TradingPairEngine:
         """
         bids = [
             OrderBookLevel(price=order.price, quantity=order.remaining_base_amount)
-            for order in self.buy_orders
+            for order in self.orders[OrderType.BUY]
         ]
         asks = [
             OrderBookLevel(price=order.price, quantity=order.remaining_base_amount)
-            for order in self.sell_orders
+            for order in self.orders[OrderType.SELL]
         ]
         return OrderBookSnapshot(bids=bids, asks=asks)
 
@@ -179,6 +182,14 @@ class TradingPairEngine:
         """
         return self.trade_history[-limit:] if self.trade_history else []
 
+    def get_current_price(self) -> float:
+        """获取交易对当前市场价格。
+
+        Returns:
+            float: 基于最新成交价的当前市场价格。
+        """
+        return self.current_price
+
     @property
     def symbol(self) -> str:
         """交易对符号。
@@ -187,6 +198,42 @@ class TradingPairEngine:
             str: 交易对符号，如"BTC/USDT"。
         """
         return f'{self.base_asset.value}/{self.quote_asset.value}'
+
+    @property
+    def buy_orders(self) -> list[Order]:
+        """获取所有限价买单。
+
+        Returns:
+            list[Order]: 按价格降序排列的限价买单列表。
+        """
+        return self.orders[OrderType.BUY]
+
+    @property
+    def sell_orders(self) -> list[Order]:
+        """获取所有限价卖单。
+
+        Returns:
+            list[Order]: 按价格升序排列的限价卖单列表。
+        """
+        return self.orders[OrderType.SELL]
+
+    @property
+    def market_buy_orders(self) -> list[Order]:
+        """获取所有市价买单。
+
+        Returns:
+            list[Order]: 市价买单列表。
+        """
+        return self.orders[OrderType.MARKET_BUY]
+
+    @property
+    def market_sell_orders(self) -> list[Order]:
+        """获取所有市价卖单。
+
+        Returns:
+            list[Order]: 市价卖单列表。
+        """
+        return self.orders[OrderType.MARKET_SELL]
 
     # ====================
     # 订单管理内部方法
@@ -201,13 +248,12 @@ class TradingPairEngine:
             order: 要插入的订单。
         """
         if order.order_type == OrderType.BUY:
-            self._insert_buy_order_internal(order)
+            self._insert_buy_order(order)
         elif order.order_type == OrderType.SELL:
-            self._insert_sell_order_internal(order)
-        elif order.order_type == OrderType.MARKET_BUY:
-            self.market_buy_orders.append(order)
-        elif order.order_type == OrderType.MARKET_SELL:
-            self.market_sell_orders.append(order)
+            self._insert_sell_order(order)
+        else:
+            # 市价订单直接添加到对应列表
+            self.orders[order.order_type].append(order)
 
     def _remove_order(self, order: Order) -> bool:
         """从订单簿中移除订单。
@@ -218,42 +264,37 @@ class TradingPairEngine:
         Returns:
             bool: 移除成功返回True，失败返回False。
         """
-        order_lists = {
-            OrderType.BUY: self.buy_orders,
-            OrderType.SELL: self.sell_orders,
-            OrderType.MARKET_BUY: self.market_buy_orders,
-            OrderType.MARKET_SELL: self.market_sell_orders,
-        }
-
-        orders = order_lists.get(order.order_type, [])
+        orders = self.orders.get(order.order_type, [])
         if order in orders:
             orders.remove(order)
             return True
         return False
 
-    def _insert_buy_order_internal(self, order: Order) -> None:
+    def _insert_buy_order(self, order: Order) -> None:
         """插入买单到订单簿（价格降序）。
 
         Args:
             order: 买单对象。
         """
-        for i, existing_order in enumerate(self.buy_orders):
+        orders = self.orders[OrderType.BUY]
+        for i, existing_order in enumerate(orders):
             if order.price > existing_order.price:
-                self.buy_orders.insert(i, order)
+                orders.insert(i, order)
                 return
-        self.buy_orders.append(order)
+        orders.append(order)
 
-    def _insert_sell_order_internal(self, order: Order) -> None:
+    def _insert_sell_order(self, order: Order) -> None:
         """插入卖单到订单簿（价格升序）。
 
         Args:
             order: 卖单对象。
         """
-        for i, existing_order in enumerate(self.sell_orders):
+        orders = self.orders[OrderType.SELL]
+        for i, existing_order in enumerate(orders):
             if order.price < existing_order.price:
-                self.sell_orders.insert(i, order)
+                orders.insert(i, order)
                 return
-        self.sell_orders.append(order)
+        orders.append(order)
 
     # ====================
     # 交易撮合内部方法
@@ -267,18 +308,18 @@ class TradingPairEngine:
         trades = []
 
         # 先处理市价订单
-        market_trades = self._execute_market_orders_internal()
+        market_trades = self._execute_market_orders()
         trades.extend(market_trades)
 
         # 再处理限价订单匹配
-        limit_trades = self._match_limit_orders_internal()
+        limit_trades = self._match_limit_orders()
         trades.extend(limit_trades)
 
         # 更新价格
         if trades:
             self._update_price_from_trades(trades)
 
-    def _execute_market_orders_internal(self) -> list[TradeSettlement]:
+    def _execute_market_orders(self) -> list[TradeSettlement]:
         """执行所有市价订单。
 
         Returns:
@@ -287,16 +328,16 @@ class TradingPairEngine:
         trades = []
 
         # 处理市价买单
-        for market_buy in self.market_buy_orders[:]:
-            trades.extend(self._execute_market_buy_internal(market_buy))
+        for market_buy in self.orders[OrderType.MARKET_BUY][:]:
+            trades.extend(self._execute_market_buy(market_buy))
 
         # 处理市价卖单
-        for market_sell in self.market_sell_orders[:]:
-            trades.extend(self._execute_market_sell_internal(market_sell))
+        for market_sell in self.orders[OrderType.MARKET_SELL][:]:
+            trades.extend(self._execute_market_sell(market_sell))
 
         return trades
 
-    def _execute_market_buy_internal(self, market_buy: Order) -> list[TradeSettlement]:
+    def _execute_market_buy(self, market_buy: Order) -> list[TradeSettlement]:
         """执行单个市价买单。
 
         从卖单簿中按价格从低到高成交。
@@ -308,33 +349,54 @@ class TradingPairEngine:
             list: 生成的交易记录列表。
         """
         trades = []
-        remaining_amount = market_buy.quote_amount
-        if remaining_amount is None:
-            # 如果指定了base_amount，使用base_amount计算
+        max_trades = 1000  # 防止无限循环
+        trades_count = 0
+
+        # 获取原始冻结的计价资产金额
+        original_quote = market_buy.quote_amount
+        if original_quote is None:
             if market_buy.base_amount is not None:
-                remaining_amount = market_buy.base_amount * self.current_price
+                original_quote = market_buy.base_amount * self.current_price
             else:
                 return trades
 
+        # 计算已成交的计价资产金额和剩余
+        executed_quote = market_buy.filled_quote_amount
+        remaining_quote = original_quote - executed_quote
+
+        if remaining_quote <= 0:
+            return trades
+
         # 从卖单簿中按价格从低到高成交
-        for sell_order in self.sell_orders[:]:
-            if remaining_amount <= 0 or market_buy.is_filled:
+        for sell_order in self.orders[OrderType.SELL][:]:
+            if trades_count >= max_trades:
+                break
+
+            if remaining_quote <= 1e-10 or market_buy.is_filled:
                 break
 
             available_quantity = sell_order.remaining_base_amount
             trade_price = sell_order.price
-            max_quantity = remaining_amount / trade_price
+            max_quantity = remaining_quote / trade_price
             trade_quantity = min(available_quantity, max_quantity)
 
-            if trade_quantity > 0:
+            if trade_quantity > 1e-10:
+                actual_quote = trade_quantity * trade_price
+                # 确保不超过剩余冻结金额
+                actual_quote = min(actual_quote, remaining_quote)
+                trade_quantity = actual_quote / trade_price
+
                 trade = self._create_trade(market_buy, sell_order, trade_quantity, trade_price)
                 if trade is not None:
                     trades.append(trade)
-                    remaining_amount -= trade_quantity * trade_price
+                    remaining_quote -= actual_quote
+                    trades_count += 1
+            else:
+                break
 
         return trades
 
-    def _execute_market_sell_internal(self, market_sell: Order) -> list[TradeSettlement]:
+    def _execute_market_sell(self, market_sell: Order) -> list[TradeSettlement]:
         """执行单个市价卖单。
 
         从买单簿中按价格从高到低成交。
@@ -346,32 +408,51 @@ class TradingPairEngine:
             list: 生成的交易记录列表。
         """
         trades = []
-        remaining_quantity = market_sell.base_amount
-        if remaining_quantity is None:
-            # 如果指定了quote_amount，使用quote_amount计算
+        max_trades = 1000  # 防止无限循环
+        trades_count = 0
+
+        # 获取原始冻结的基础资产数量
+        original_base = market_sell.base_amount
+        if original_base is None:
             if market_sell.quote_amount is not None:
-                remaining_quantity = market_sell.quote_amount / self.current_price
+                original_base = market_sell.quote_amount / self.current_price
             else:
                 return trades
 
+        # 计算已成交的基础资产数量和剩余
+        executed_base = market_sell.filled_base_amount
+        remaining_base = original_base - executed_base
+
+        if remaining_base <= 0:
+            return trades
+
         # 从买单簿中按价格从高到低成交
-        for buy_order in self.buy_orders[:]:
-            if remaining_quantity <= 0 or market_sell.is_filled:
+        for buy_order in self.orders[OrderType.BUY][:]:
+            if trades_count >= max_trades:
+                break
+
+            if remaining_base <= 1e-10 or market_sell.is_filled:
                 break
 
             available_quantity = buy_order.remaining_base_amount
             trade_price = buy_order.price
-            trade_quantity = min(available_quantity, remaining_quantity)
+            trade_quantity = min(available_quantity, remaining_base)
 
-            if trade_quantity > 0:
+            if trade_quantity > 1e-10:
+                # 确保不超过剩余冻结数量
+                trade_quantity = min(trade_quantity, remaining_base)
+
                 trade = self._create_trade(buy_order, market_sell, trade_quantity, trade_price)
                 if trade is not None:
                     trades.append(trade)
-                    remaining_quantity -= trade_quantity
+                    remaining_base -= trade_quantity
+                    trades_count += 1
+            else:
+                break
 
         return trades
 
-    def _match_limit_orders_internal(self) -> list[TradeSettlement]:
+    def _match_limit_orders(self) -> list[TradeSettlement]:
         """匹配限价订单。
 
         采用价格-时间优先算法匹配买单和卖单。
@@ -380,16 +461,28 @@ class TradingPairEngine:
             list: 生成的交易记录列表。
         """
         trades = []
+        max_iterations = 1000  # 防止无限循环
+        iterations = 0
 
-        while self.buy_orders and self.sell_orders:
-            best_buy = self.buy_orders[0]
-            best_sell = self.sell_orders[0]
+        while (
+            self.orders[OrderType.BUY]
+            and self.orders[OrderType.SELL]
+            and iterations < max_iterations
+        ):
+            iterations += 1
+            best_buy = self.orders[OrderType.BUY][0]
+            best_sell = self.orders[OrderType.SELL][0]
 
-            # 检查是否可以成交
-            if best_buy.price >= best_sell.price:
+            # 检查是否可以成交（考虑浮点数精度）
+            if best_buy.price >= best_sell.price - 1e-10:  # 添加epsilon容差
                 trade_quantity = min(
                     best_buy.remaining_base_amount, best_sell.remaining_base_amount
                 )
+
+                # 确保交易数量大于最小阈值
+                if trade_quantity <= 1e-10:
+                    break
+
                 trade_price = best_sell.price  # 按卖单价格成交
 
                 trade = self._create_trade(best_buy, best_sell, trade_quantity, trade_price)
@@ -397,22 +490,32 @@ class TradingPairEngine:
                     trades.append(trade)
 
                 # 清理已完成的订单
-                self._cleanup_filled_orders_internal()
+                self._cleanup_filled_orders()
+
+                # 如果没有任何订单被清理，说明可能有精度问题，退出循环
+                if not any(order.is_filled for order in [best_buy, best_sell]):
+                    break
             else:
                 break
 
         return trades
 
-    def _cleanup_filled_orders_internal(self) -> None:
+    def _cleanup_filled_orders(self) -> None:
         """清理已完成的订单。
 
         从订单簿中移除已完全成交的订单。
         """
-        self.buy_orders = [order for order in self.buy_orders if not order.is_filled]
-        self.sell_orders = [order for order in self.sell_orders if not order.is_filled]
-        self.market_buy_orders = [order for order in self.market_buy_orders if not order.is_filled]
-        self.market_sell_orders = [
-            order for order in self.market_sell_orders if not order.is_filled
+        self.orders[OrderType.BUY] = [
+            order for order in self.orders[OrderType.BUY] if not order.is_filled
+        ]
+        self.orders[OrderType.SELL] = [
+            order for order in self.orders[OrderType.SELL] if not order.is_filled
+        ]
+        self.orders[OrderType.MARKET_BUY] = [
+            order for order in self.orders[OrderType.MARKET_BUY] if not order.is_filled
+        ]
+        self.orders[OrderType.MARKET_SELL] = [
+            order for order in self.orders[OrderType.MARKET_SELL] if not order.is_filled
         ]
 
     # ====================
@@ -479,6 +582,10 @@ class TradingPairEngine:
         # 更新买卖双方的持仓
         self._update_user_balances_from_trade(trade)
 
+        # 更新用户订单状态
+        # Note: We need to get the actual users from the exchange to move orders
+        # This will be handled by the exchange layer
+
         # 添加到滚动历史记录
         self.trade_history.append(trade)
         if len(self.trade_history) > 1000:
@@ -509,77 +616,28 @@ class TradingPairEngine:
             self.last_update = datetime.now()
 
     def _update_user_balances_from_trade(self, trade: TradeSettlement) -> None:
-        """根据交易记录更新用户持仓。
+        """根据交易记录更新用户总资产。
+
+        交易结算时只更新用户的总资产，可用余额和锁定余额通过动态计算获得。
 
         Args:
             trade: 交易结算信息。
         """
-        buyer = trade.buy_order.user
-        seller = trade.sell_order.user
+        buyer = self.users[trade.buy_order.user_id]
+        seller = self.users[trade.sell_order.user_id]
         trade_value = trade.base_amount * trade.price
 
-        # 买家操作：获得基础资产，从锁定余额中扣除实际使用的计价资产
-        buyer.update_balance(
-            asset=trade.trading_pair.base_asset,
-            available_change=trade.base_amount,
-            locked_change=0,  # 基础资产是新获得的，不涉及锁定
-        )
+        # 买家操作：获得基础资产，扣除计价资产
+        buyer.update_total_asset(trade.trading_pair.base_asset, trade.base_amount)
+        buyer.update_total_asset(trade.trading_pair.quote_asset, -trade_value)
 
-        # 扣除实际使用的计价资产（已成交部分对应的金额）
-        actual_deduct = trade.base_amount * trade.price
-        buyer.update_balance(
-            asset=trade.trading_pair.quote_asset,
-            available_change=0,
-            locked_change=-actual_deduct,
-        )
-
-        # 卖家操作：获得计价资产，从锁定余额中扣除实际卖出的基础资产
-        seller.update_balance(
-            asset=trade.trading_pair.quote_asset,
-            available_change=trade_value,
-            locked_change=0,  # 计价资产是新获得的
-        )
-
-        # 扣除实际卖出的基础资产
-        seller.update_balance(
-            asset=trade.trading_pair.base_asset,
-            available_change=0,
-            locked_change=-trade.base_amount,
-        )
+        # 卖家操作：获得计价资产，扣除基础资产
+        seller.update_total_asset(trade.trading_pair.quote_asset, trade_value)
+        seller.update_total_asset(trade.trading_pair.base_asset, -trade.base_amount)
 
     # ====================
     # 验证和余额处理方法
     # ====================
-
-    def _validate_order_parameters(
-        self,
-        order_type: OrderType,
-        base_amount: float | None,
-        price: float | None,
-        quote_amount: float | None,
-    ) -> None:
-        """验证订单参数。
-
-        Args:
-            order_type: 订单类型
-            base_amount: 基础资产数量
-            price: 订单价格
-            quote_amount: 计价资产金额
-
-        Raises:
-            ValueError: 参数不合法
-        """
-        if order_type in [OrderType.BUY, OrderType.SELL] and (price is None or price <= 0):
-            raise ValueError('限价订单必须指定有效价格')
-
-        if base_amount is None and quote_amount is None:
-            raise ValueError('订单必须指定基础资产数量或计价资产金额')
-
-        if base_amount is not None and base_amount <= 0:
-            raise ValueError('基础资产数量必须大于0')
-
-        if quote_amount is not None and quote_amount <= 0:
-            raise ValueError('计价资产金额必须大于0')
 
     def _validate_user_balance(
         self,
@@ -655,7 +713,10 @@ class TradingPairEngine:
         price: float | None,
         quote_amount: float | None,
     ) -> None:
-        """冻结订单所需的资产。
+        """验证订单所需的资产是否充足。
+
+        在新的系统中，不再冻结资产，仅验证可用余额是否充足。
+        锁定金额通过活跃订单动态计算。
 
         Args:
             user: 用户对象
@@ -664,91 +725,19 @@ class TradingPairEngine:
             price: 订单价格
             quote_amount: 计价资产金额
         """
-        if order_type in [OrderType.BUY, OrderType.MARKET_BUY]:
-            # 买单冻结计价资产
-            if order_type == OrderType.MARKET_BUY:
-                if quote_amount is not None:
-                    freeze_amount = quote_amount
-                elif base_amount is not None:
-                    freeze_amount = base_amount * self.current_price
-                else:
-                    freeze_amount = 0
-            else:  # 限价买单
-                if base_amount is not None and price is not None:
-                    freeze_amount = base_amount * price
-                elif quote_amount is not None:
-                    freeze_amount = quote_amount
-                else:
-                    freeze_amount = 0
-
-            user.update_balance(
-                asset=self.quote_asset,
-                available_change=-freeze_amount,
-                locked_change=freeze_amount,
-            )
-
-        else:  # 卖单冻结基础资产
-            if order_type == OrderType.MARKET_SELL:
-                if base_amount is not None:
-                    freeze_amount = base_amount
-                elif quote_amount is not None:
-                    freeze_amount = quote_amount / self.current_price
-                else:
-                    freeze_amount = 0
-            else:  # 限价卖单
-                if base_amount is not None:
-                    freeze_amount = base_amount
-                elif quote_amount is not None and price is not None:
-                    freeze_amount = quote_amount / price
-                else:
-                    freeze_amount = 0
-
-            user.update_balance(
-                asset=self.base_asset,
-                available_change=-freeze_amount,
-                locked_change=freeze_amount,
-            )
+        # 此方法现在仅用于验证，不执行实际的冻结操作
 
     def _release_frozen_assets(self, user: User, order: Order) -> None:
         """释放订单冻结的资产。
+
+        在新的系统中，不再使用锁定余额机制，可用余额通过活跃订单动态计算。
+        此方法现在仅用于保持接口一致性，不执行实际的资产释放操作。
 
         Args:
             user: 用户对象
             order: 要取消的订单
         """
-        if order.order_type in [OrderType.BUY, OrderType.MARKET_BUY]:
-            # 释放未使用的计价资产
-            remaining_quote = 0.0
-            if order.base_amount is not None and order.price is not None:
-                total_quote = order.base_amount * order.price
-                used_quote = order.filled_base_amount * order.price
-                remaining_quote = total_quote - used_quote
-            elif order.quote_amount is not None:
-                remaining_quote = order.quote_amount - order.filled_quote_amount
-
-            if remaining_quote > 0:
-                user.update_balance(
-                    asset=self.quote_asset,
-                    available_change=remaining_quote,
-                    locked_change=-remaining_quote,
-                )
-
-        else:  # 卖单
-            # 释放未卖出的基础资产
-            remaining_base = 0.0
-            if order.base_amount is not None:
-                remaining_base = order.base_amount - order.filled_base_amount
-            elif order.quote_amount is not None and order.price is not None:
-                total_base = order.quote_amount / order.price
-                used_base = order.filled_quote_amount / order.price
-                remaining_base = total_base - used_base
-
-            if remaining_base > 0:
-                user.update_balance(
-                    asset=self.base_asset,
-                    available_change=remaining_base,
-                    locked_change=-remaining_base,
-                )
+        # 在新的系统中，资产释放通过移除活跃订单自动处理
 
     def _validate_price_crossing(
         self, user: User, order_type: OrderType, price: float | None
@@ -770,16 +759,11 @@ class TradingPairEngine:
         if price is None:
             return  # 市价订单不检查价格交叉
 
-        user_id = user.id
+        trading_pair_type = TradingPairType(f'{self.base_asset.value}/{self.quote_asset.value}')
 
         if order_type == OrderType.BUY:
             # 检查是否有卖单价格严格低于新的买单价格
-            user_sell_orders = [
-                order
-                for order in self.sell_orders
-                if order.user.id == user_id
-                and order.status in [OrderStatus.PENDING, OrderStatus.PARTIALLY_FILLED]
-            ]
+            user_sell_orders = user.get_active_orders(trading_pair_type, OrderType.SELL)
             for sell_order in user_sell_orders:
                 if sell_order.price is not None and price > sell_order.price:
                     raise ValueError(
@@ -788,12 +772,7 @@ class TradingPairEngine:
 
         elif order_type == OrderType.SELL:
             # 检查是否有买单价格严格高于新的卖单价格
-            user_buy_orders = [
-                order
-                for order in self.buy_orders
-                if order.user.id == user_id
-                and order.status in [OrderStatus.PENDING, OrderStatus.PARTIALLY_FILLED]
-            ]
+            user_buy_orders = user.get_active_orders(trading_pair_type, OrderType.BUY)
             for buy_order in user_buy_orders:
                 if buy_order.price is not None and price < buy_order.price:
                     raise ValueError(

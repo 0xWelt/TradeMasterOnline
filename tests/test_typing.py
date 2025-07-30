@@ -6,7 +6,8 @@ import pytest
 from pydantic import ValidationError
 
 from tmo.constants import AssetType, OrderStatus, OrderType, TradingPairType
-from tmo.typing import Asset, Order, Portfolio, TradeSettlement, User
+from tmo.typing import Asset, Order, TradeSettlement
+from tmo.user import User
 
 
 class TestAsset:
@@ -43,49 +44,6 @@ class TestAsset:
             Asset(symbol='INVALID', name='Invalid')
 
 
-class TestPortfolio:
-    """测试持仓模型."""
-
-    def test_portfolio_creation(self):
-        """测试持仓创建."""
-        portfolio = Portfolio(asset=AssetType.BTC)
-        assert portfolio.asset == AssetType.BTC
-        assert portfolio.available_balance == 0
-        assert portfolio.locked_balance == 0
-        assert portfolio.total_balance == 0
-
-    def test_portfolio_with_balances(self):
-        """测试带余额的持仓创建."""
-        portfolio = Portfolio(
-            asset=AssetType.USDT,
-            available_balance=1000.0,
-            locked_balance=500.0,
-        )
-        assert portfolio.available_balance == 1000.0
-        assert portfolio.locked_balance == 500.0
-        assert portfolio.total_balance == 1500.0
-
-    def test_total_balance_calculation(self):
-        """测试总余额计算."""
-        portfolio = Portfolio(asset=AssetType.ETH)
-        portfolio.available_balance = 10.0
-        portfolio.locked_balance = 5.0
-        assert portfolio.total_balance == 15.0
-
-    def test_negative_balance_validation(self):
-        """测试负余额验证."""
-        with pytest.raises(ValidationError):
-            Portfolio(asset=AssetType.BTC, available_balance=-1.0)
-        with pytest.raises(ValidationError):
-            Portfolio(asset=AssetType.BTC, locked_balance=-1.0)
-
-    def test_portfolio_immutable_asset(self):
-        """测试资产类型不可变."""
-        portfolio = Portfolio(asset=AssetType.USDT)
-        with pytest.raises(ValidationError):
-            portfolio.asset = AssetType.BTC
-
-
 class TestUser:
     """测试用户模型."""
 
@@ -96,34 +54,36 @@ class TestUser:
         assert user.email == 'test@example.com'
         assert isinstance(user.id, str)
         assert isinstance(user.created_at, datetime)
-        assert user.portfolios == {}
+        # 应该为所有资产类型创建0初始余额
+        assert len(user.total_assets) == 3
+        assert AssetType.USDT in user.total_assets
+        assert AssetType.BTC in user.total_assets
+        assert AssetType.ETH in user.total_assets
+        assert user.total_assets[AssetType.USDT] == 0.0
 
-    def test_user_portfolios(self):
-        """测试用户持仓."""
-        portfolio = Portfolio(asset=AssetType.BTC)
+    def test_user_total_assets(self):
+        """测试用户总资产."""
         user = User(
             username='test_user',
             email='test@example.com',
-            portfolios={AssetType.BTC: portfolio},
+            total_assets={AssetType.BTC: 1.5},
         )
-        assert AssetType.BTC in user.portfolios
-        assert user.portfolios[AssetType.BTC] == portfolio
+        assert AssetType.BTC in user.total_assets
+        assert user.total_assets[AssetType.BTC] == 1.5
 
-    def test_user_update_balance_new_asset(self):
-        """测试为新资产更新余额."""
+    def test_user_update_total_asset_new_asset(self):
+        """测试为新资产更新总资产."""
         user = User(username='test_user', email='test@example.com')
-        user.update_balance(AssetType.BTC, 1.5, 0.5)
-        assert AssetType.BTC in user.portfolios
-        assert user.portfolios[AssetType.BTC].available_balance == 1.5
-        assert user.portfolios[AssetType.BTC].locked_balance == 0.5
+        user.update_total_asset(AssetType.BTC, 1.5)
+        assert AssetType.BTC in user.total_assets
+        assert user.total_assets[AssetType.BTC] == 1.5
 
-    def test_user_update_balance_existing_asset(self):
-        """测试为已有资产更新余额."""
+    def test_user_update_total_asset_existing_asset(self):
+        """测试为已有资产更新总资产."""
         user = User(username='test_user', email='test@example.com')
-        user.update_balance(AssetType.USDT, 1000.0, 0.0)
-        user.update_balance(AssetType.USDT, 500.0, 200.0)
-        assert user.portfolios[AssetType.USDT].available_balance == 1500.0
-        assert user.portfolios[AssetType.USDT].locked_balance == 200.0
+        user.update_total_asset(AssetType.USDT, 1000.0)
+        user.update_total_asset(AssetType.USDT, 500.0)
+        assert user.total_assets[AssetType.USDT] == 1500.0
 
     def test_user_immutable_fields(self):
         """测试用户字段不可变性."""
@@ -140,6 +100,57 @@ class TestUser:
         assert user1.id != user2.id
         assert user1.created_at != user2.created_at
 
+    def test_user_get_available_balance(self):
+        """测试获取用户可用余额."""
+        user = User(username='test_user', email='test@example.com')
+        user.update_total_asset(AssetType.USDT, 1000.0)
+        # 无活跃订单，可用余额应等于总资产
+        assert user.get_available_balance(AssetType.USDT) == 1000.0
+
+    def test_user_get_locked_balance(self):
+        """测试获取用户锁定余额."""
+        user = User(username='test_user', email='test@example.com')
+        user.update_total_asset(AssetType.USDT, 1000.0)
+        # 无活跃订单，锁定余额应为0
+        assert user.get_locked_balance(AssetType.USDT) == 0.0
+
+    def test_user_get_total_balance(self):
+        """测试获取用户总余额."""
+        user = User(username='test_user', email='test@example.com')
+        user.update_total_asset(AssetType.BTC, 2.5)
+        assert user.get_total_balance(AssetType.BTC) == 2.5
+
+    def test_user_deposit(self):
+        """测试用户充值."""
+        user = User(username='test_user', email='test@example.com')
+        user.deposit(AssetType.USDT, 1000.0)
+        assert user.total_assets[AssetType.USDT] == 1000.0
+
+    def test_user_withdraw(self):
+        """测试用户提现."""
+        user = User(username='test_user', email='test@example.com')
+        user.update_total_asset(AssetType.USDT, 1000.0)
+        user.withdraw(AssetType.USDT, 500.0)
+        assert user.total_assets[AssetType.USDT] == 500.0
+
+    def test_user_withdraw_insufficient_balance(self):
+        """测试用户提现余额不足."""
+        user = User(username='test_user', email='test@example.com')
+        with pytest.raises(ValueError, match='可用余额不足'):
+            user.withdraw(AssetType.USDT, 1000.0)
+
+    def test_user_deposit_negative_amount(self):
+        """测试用户充值负金额."""
+        user = User(username='test_user', email='test@example.com')
+        with pytest.raises(ValueError, match='充值金额必须大于0'):
+            user.deposit(AssetType.USDT, -100.0)
+
+    def test_user_withdraw_negative_amount(self):
+        """测试用户提现负金额."""
+        user = User(username='test_user', email='test@example.com')
+        with pytest.raises(ValueError, match='提现金额必须大于0'):
+            user.withdraw(AssetType.USDT, -100.0)
+
 
 class TestOrder:
     """测试订单模型."""
@@ -151,7 +162,7 @@ class TestOrder:
     def test_limit_buy_order(self):
         """测试限价买单创建."""
         order = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
@@ -167,7 +178,7 @@ class TestOrder:
     def test_limit_sell_order(self):
         """测试限价卖单创建."""
         order = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=0.5,
@@ -180,7 +191,7 @@ class TestOrder:
     def test_market_buy_order(self):
         """测试市价买单创建."""
         order = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.MARKET_BUY,
             trading_pair=TradingPairType.BTC_USDT,
             quote_amount=1000.0,
@@ -193,7 +204,7 @@ class TestOrder:
     def test_market_sell_order(self):
         """测试市价卖单创建."""
         order = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.MARKET_SELL,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=0.1,
@@ -206,29 +217,18 @@ class TestOrder:
         """测试市价订单不能指定价格."""
         with pytest.raises(ValidationError, match='市价订单不能指定价格'):
             Order(
-                user=self.user,
+                user_id=self.user.id,
                 order_type=OrderType.MARKET_BUY,
                 trading_pair=TradingPairType.BTC_USDT,
                 base_amount=1.0,
                 price=50000.0,
             )
 
-    def test_order_validation_missing_price_for_limit(self):
-        """测试限价订单必须指定价格 - 通过测试零价格触发验证."""
-        with pytest.raises(ValidationError, match='限价订单价格必须大于0'):
-            Order(
-                user=self.user,
-                order_type=OrderType.BUY,
-                trading_pair=TradingPairType.BTC_USDT,
-                base_amount=1.0,
-                price=0,
-            )
-
     def test_order_validation_zero_price(self):
         """测试价格必须大于0."""
         with pytest.raises(ValidationError, match='限价订单价格必须大于0'):
             Order(
-                user=self.user,
+                user_id=self.user.id,
                 order_type=OrderType.BUY,
                 trading_pair=TradingPairType.BTC_USDT,
                 base_amount=1.0,
@@ -239,7 +239,7 @@ class TestOrder:
         """测试数量必须大于0."""
         with pytest.raises(ValidationError, match='基础资产数量必须大于0'):
             Order(
-                user=self.user,
+                user_id=self.user.id,
                 order_type=OrderType.BUY,
                 trading_pair=TradingPairType.BTC_USDT,
                 base_amount=0,
@@ -250,7 +250,7 @@ class TestOrder:
         """测试基础资产数量和计价资产金额的互斥性."""
         with pytest.raises(ValidationError, match='基础资产数量和计价资产金额只能设置一个'):
             Order(
-                user=self.user,
+                user_id=self.user.id,
                 order_type=OrderType.BUY,
                 trading_pair=TradingPairType.BTC_USDT,
                 base_amount=1.0,
@@ -260,9 +260,9 @@ class TestOrder:
 
     def test_order_validation_missing_amount(self):
         """测试必须设置数量."""
-        with pytest.raises(ValidationError, match='必须设置基础资产数量或计价资产金额'):
+        with pytest.raises(ValidationError, match='订单必须指定基础资产数量或计价资产金额'):
             Order(
-                user=self.user,
+                user_id=self.user.id,
                 order_type=OrderType.BUY,
                 trading_pair=TradingPairType.BTC_USDT,
                 price=50000.0,
@@ -271,7 +271,7 @@ class TestOrder:
     def test_order_properties(self):
         """测试订单属性."""
         order = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
@@ -285,7 +285,7 @@ class TestOrder:
     def test_order_filled_status(self):
         """测试订单成交状态."""
         order = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
@@ -298,7 +298,7 @@ class TestOrder:
     def test_order_partially_filled_status(self):
         """测试订单部分成交状态."""
         order = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
@@ -308,38 +308,17 @@ class TestOrder:
         assert order.is_partially_filled
         assert not order.is_filled
 
-    def test_order_cancelled_callback(self):
-        """测试订单取消回调."""
-        # 为用户设置初始余额
-        self.user.update_balance(AssetType.USDT, 100000.0, 0.0)
-
-        order = Order(
-            user=self.user,
-            order_type=OrderType.BUY,
-            trading_pair=TradingPairType.BTC_USDT,
-            base_amount=1.0,
-            price=50000.0,
-        )
-
-        # 模拟锁定余额
-        self.user.update_balance(AssetType.USDT, -50000.0, 50000.0)
-
-        # 取消订单
-        order.on_cancelled()
-        assert self.user.portfolios[AssetType.USDT].available_balance == 100000.0
-        assert self.user.portfolios[AssetType.USDT].locked_balance == 0.0
-
     def test_auto_generated_fields(self):
         """测试自动生成字段."""
         order1 = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
             price=50000.0,
         )
         order2 = Order(
-            user=self.user,
+            user_id=self.user.id,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
@@ -357,7 +336,7 @@ class TestTradeSettlement:
         self.sell_user = User(username='seller', email='seller@example.com')
 
         self.buy_order = Order(
-            user=self.buy_user,
+            user_id=self.buy_user.id,
             order_type=OrderType.BUY,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
@@ -365,7 +344,7 @@ class TestTradeSettlement:
         )
 
         self.sell_order = Order(
-            user=self.sell_user,
+            user_id=self.sell_user.id,
             order_type=OrderType.SELL,
             trading_pair=TradingPairType.BTC_USDT,
             base_amount=1.0,
