@@ -99,9 +99,9 @@ class TradingPairEngine:
         """下单并立即执行匹配。
 
         处理完整的订单生命周期：参数验证、余额检查、资产冻结、
-        价格交叉检查、订单插入和自动撮合。
+        订单插入和自动撮合。
 
-        用户可以同时持有买单和卖单，但不允许价格交叉（买单价格不能高于卖单价格）。
+        允许价格交叉和自成交，提供更大的交易灵活性。
 
         Args:
             user: 下单用户。
@@ -114,11 +114,11 @@ class TradingPairEngine:
             Order: 创建的订单对象，已执行撮合。
 
         Raises:
-            ValueError: 参数不合法、余额不足或价格交叉。
+            ValueError: 参数不合法或余额不足。
         """
-        # Pydantic会自动验证订单参数，这里只需要验证余额和价格交叉
+        # Pydantic会自动验证订单参数，这里只需要验证余额
         self._validate_user_balance(user, order_type, base_amount, price, quote_amount)
-        self._validate_price_crossing(user, order_type, price)
+        # 不再检查价格交叉，允许价格交叉和自成交
 
         order = Order(
             user_id=user.id,
@@ -164,10 +164,12 @@ class TradingPairEngine:
         bids = [
             OrderBookLevel(price=order.price, quantity=order.remaining_base_amount)
             for order in self.orders[OrderType.BUY]
+            if order.remaining_base_amount > 0
         ]
         asks = [
             OrderBookLevel(price=order.price, quantity=order.remaining_base_amount)
             for order in self.orders[OrderType.SELL]
+            if order.remaining_base_amount > 0
         ]
         return OrderBookSnapshot(bids=bids, asks=asks)
 
@@ -340,7 +342,7 @@ class TradingPairEngine:
     def _execute_market_buy(self, market_buy: Order) -> list[TradeSettlement]:
         """执行单个市价买单。
 
-        从卖单簿中按价格从低到高成交。
+        从卖单簿中按价格从低到高成交，立即成交所有可用卖单。
 
         Args:
             market_buy: 市价买单。
@@ -358,21 +360,16 @@ class TradingPairEngine:
             if market_buy.base_amount is not None:
                 original_quote = market_buy.base_amount * self.current_price
             else:
+                # 如果没有金额信息，保持原状态
                 return trades
 
-        # 计算已成交的计价资产金额和剩余
-        executed_quote = market_buy.filled_quote_amount
-        remaining_quote = original_quote - executed_quote
-
-        if remaining_quote <= 0:
-            return trades
-
-        # 从卖单簿中按价格从低到高成交
+        # 从卖单簿中按价格从低到高成交所有可用卖单
+        remaining_quote = original_quote
         for sell_order in self.orders[OrderType.SELL][:]:
             if trades_count >= max_trades:
                 break
 
-            if remaining_quote <= 1e-10 or market_buy.is_filled:
+            if remaining_quote <= 1e-10:
                 break
 
             available_quantity = sell_order.remaining_base_amount
@@ -382,7 +379,6 @@ class TradingPairEngine:
 
             if trade_quantity > 1e-10:
                 actual_quote = trade_quantity * trade_price
-                # 确保不超过剩余冻结金额
                 actual_quote = min(actual_quote, remaining_quote)
                 trade_quantity = actual_quote / trade_price
 
@@ -391,15 +387,22 @@ class TradingPairEngine:
                     trades.append(trade)
                     remaining_quote -= actual_quote
                     trades_count += 1
-            else:
-                break
+
+        # 根据成交情况设置状态
+        if market_buy.is_filled:
+            market_buy.status = OrderStatus.FILLED
+        elif market_buy.is_partially_filled:
+            market_buy.status = OrderStatus.PARTIALLY_FILLED
+        else:
+            # 没有成交，保持PENDING状态
+            market_buy.status = OrderStatus.PENDING
 
         return trades
 
     def _execute_market_sell(self, market_sell: Order) -> list[TradeSettlement]:
         """执行单个市价卖单。
 
-        从买单簿中按价格从高到低成交。
+        从买单簿中按价格从高到低成交，立即成交所有可用买单。
 
         Args:
             market_sell: 市价卖单。
@@ -417,21 +420,16 @@ class TradingPairEngine:
             if market_sell.quote_amount is not None:
                 original_base = market_sell.quote_amount / self.current_price
             else:
+                # 如果没有数量信息，保持原状态
                 return trades
 
-        # 计算已成交的基础资产数量和剩余
-        executed_base = market_sell.filled_base_amount
-        remaining_base = original_base - executed_base
-
-        if remaining_base <= 0:
-            return trades
-
-        # 从买单簿中按价格从高到低成交
+        # 从买单簿中按价格从高到低成交所有可用买单
+        remaining_base = original_base
         for buy_order in self.orders[OrderType.BUY][:]:
             if trades_count >= max_trades:
                 break
 
-            if remaining_base <= 1e-10 or market_sell.is_filled:
+            if remaining_base <= 1e-10:
                 break
 
             available_quantity = buy_order.remaining_base_amount
@@ -439,7 +437,6 @@ class TradingPairEngine:
             trade_quantity = min(available_quantity, remaining_base)
 
             if trade_quantity > 1e-10:
-                # 确保不超过剩余冻结数量
                 trade_quantity = min(trade_quantity, remaining_base)
 
                 trade = self._create_trade(buy_order, market_sell, trade_quantity, trade_price)
@@ -447,8 +444,15 @@ class TradingPairEngine:
                     trades.append(trade)
                     remaining_base -= trade_quantity
                     trades_count += 1
-            else:
-                break
+
+        # 根据成交情况设置状态
+        if market_sell.is_filled:
+            market_sell.status = OrderStatus.FILLED
+        elif market_sell.is_partially_filled:
+            market_sell.status = OrderStatus.PARTIALLY_FILLED
+        else:
+            # 没有成交，保持PENDING状态
+            market_sell.status = OrderStatus.PENDING
 
         return trades
 
@@ -738,43 +742,3 @@ class TradingPairEngine:
             order: 要取消的订单
         """
         # 在新的系统中，资产释放通过移除活跃订单自动处理
-
-    def _validate_price_crossing(
-        self, user: User, order_type: OrderType, price: float | None
-    ) -> None:
-        """验证价格交叉。
-
-        检查用户是否尝试创建价格交叉的订单：
-        - 买单价格不能高于用户已有的卖单价格（严格大于）
-        - 卖单价格不能低于用户已有的买单价格（严格小于）
-
-        Args:
-            user: 用户对象
-            order_type: 订单类型
-            price: 订单价格（限价订单）
-
-        Raises:
-            ValueError: 如果检测到价格交叉
-        """
-        if price is None:
-            return  # 市价订单不检查价格交叉
-
-        trading_pair_type = TradingPairType(f'{self.base_asset.value}/{self.quote_asset.value}')
-
-        if order_type == OrderType.BUY:
-            # 检查是否有卖单价格严格低于新的买单价格
-            user_sell_orders = user.get_active_orders(trading_pair_type, OrderType.SELL)
-            for sell_order in user_sell_orders:
-                if sell_order.price is not None and price > sell_order.price:
-                    raise ValueError(
-                        f'价格交叉：买单价格 {price} 不能高于卖单价格 {sell_order.price}'
-                    )
-
-        elif order_type == OrderType.SELL:
-            # 检查是否有买单价格严格高于新的卖单价格
-            user_buy_orders = user.get_active_orders(trading_pair_type, OrderType.BUY)
-            for buy_order in user_buy_orders:
-                if buy_order.price is not None and price < buy_order.price:
-                    raise ValueError(
-                        f'价格交叉：卖单价格 {price} 不能低于买单价格 {buy_order.price}'
-                    )

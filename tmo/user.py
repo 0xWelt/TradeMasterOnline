@@ -7,15 +7,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-from .constants import AssetType, OrderType, TradingPairType
-
-
-if TYPE_CHECKING:
-    from .typing import Order
+from .constants import AssetType, OrderStatus, OrderType, TradingPairType
+from .typing import Order
 
 
 class User(BaseModel):
@@ -51,12 +47,10 @@ class User(BaseModel):
     total_assets: dict[AssetType, float] = Field(default_factory=dict)
     """用户总资产字典，键为资产类型，值为总资产数量。"""
 
-    active_orders: dict[TradingPairType, dict[OrderType, list['Order']]] = Field(
-        default_factory=dict
-    )
+    active_orders: dict[TradingPairType, dict[OrderType, list[Order]]] = Field(default_factory=dict)
     """用户当前活跃挂单字典，按交易对和订单类型分类存储所有待成交订单。"""
 
-    completed_orders: dict[TradingPairType, list['Order']] = Field(default_factory=dict)
+    completed_orders: dict[TradingPairType, list[Order]] = Field(default_factory=dict)
     """用户已完成订单字典，按交易对分类存储已成交、已取消的订单。"""
 
     def add_active_order(self, order: Order) -> None:
@@ -129,6 +123,7 @@ class User(BaseModel):
         """获取用户指定资产的锁定余额。
 
         通过计算该资产关联的所有交易对中活跃订单的锁定资产之和得到。
+        只统计状态为待成交或部分成交的订单，忽略已成交和已取消的订单。
 
         Args:
             asset: 要查询的资产类型。
@@ -144,37 +139,63 @@ class User(BaseModel):
         for pair in related_pairs:
             # 检查该交易对的活跃订单
             if pair in self.active_orders:
-                # 检查买单（会锁定计价资产）
-                if OrderType.BUY in self.active_orders[pair]:
-                    for order in self.active_orders[pair][OrderType.BUY]:
-                        if pair.quote_asset == asset:
-                            if order.base_amount is not None and order.price is not None:
-                                locked_total += order.base_amount * order.price
-                            elif order.quote_amount is not None:
-                                locked_total += order.quote_amount
+                # 检查所有订单类型
+                for order_type in [
+                    OrderType.BUY,
+                    OrderType.SELL,
+                    OrderType.MARKET_BUY,
+                    OrderType.MARKET_SELL,
+                ]:
+                    if order_type in self.active_orders[pair]:
+                        for order in self.active_orders[pair][order_type]:
+                            # 只统计活跃状态的订单
+                            if order.status not in [
+                                OrderStatus.PENDING,
+                                OrderStatus.PARTIALLY_FILLED,
+                            ]:
+                                continue
 
-                # 检查卖单（会锁定基础资产）
-                if OrderType.SELL in self.active_orders[pair]:
-                    for order in self.active_orders[pair][OrderType.SELL]:
-                        if pair.base_asset == asset:
-                            if order.base_amount is not None:
-                                locked_total += order.base_amount
-                            elif order.quote_amount is not None and order.price is not None:
-                                locked_total += order.quote_amount / order.price
+                            # 对市价订单进行特殊处理
+                            if order_type in [OrderType.MARKET_BUY, OrderType.MARKET_SELL]:
+                                # 跳过已完成的市价订单
+                                if order.is_filled:
+                                    continue
 
-                # 检查市价买单
-                if OrderType.MARKET_BUY in self.active_orders[pair]:
-                    for order in self.active_orders[pair][OrderType.MARKET_BUY]:
-                        if pair.quote_asset == asset and order.quote_amount is not None:
-                            locked_total += order.quote_amount
+                                # 计算实际剩余金额
+                                if order_type == OrderType.MARKET_BUY:
+                                    # 市价买单锁定USDT
+                                    if pair.quote_asset == asset:
+                                        remaining = order.remaining_quote_amount
+                                        if remaining > 1e-10:
+                                            locked_total += remaining
+                                else:  # MARKET_SELL
+                                    # 市价卖单锁定基础资产
+                                    if pair.base_asset == asset:
+                                        remaining = order.remaining_base_amount
+                                        if remaining > 1e-10:
+                                            locked_total += remaining
+                            else:
+                                # 限价订单
+                                if order.is_filled:
+                                    continue
 
-                # 检查市价卖单
-                if OrderType.MARKET_SELL in self.active_orders[pair]:
-                    for order in self.active_orders[pair][OrderType.MARKET_SELL]:
-                        if pair.base_asset == asset and order.base_amount is not None:
-                            locked_total += order.base_amount
+                                remaining = order.remaining_base_amount
+                                if remaining <= 1e-10:
+                                    continue
 
-        return locked_total
+                                # 计算锁定金额
+                                if order_type == OrderType.BUY:
+                                    # 限价买单锁定计价资产
+                                    if pair.quote_asset == asset:
+                                        locked_amount = remaining * order.price
+                                        locked_total += max(0.0, locked_amount)
+                                else:  # SELL
+                                    # 限价卖单锁定基础资产
+                                    if pair.base_asset == asset:
+                                        locked_total += max(0.0, remaining)
+
+        # 避免负值
+        return max(0.0, locked_total)
 
     def get_available_balance(self, asset: AssetType) -> float:
         """获取用户指定资产的可用余额。
