@@ -36,8 +36,8 @@ class Exchange:
         self.users: dict[str, User] = {}
 
         # 交易对引擎 - 使用新的TradingPair类管理每个交易对
-        self.trading_pair_engines: dict[str, TradingPairEngine] = {
-            pair.value: TradingPairEngine(trading_pair_type=pair, users=self.users)
+        self.trading_pair_engines: dict[TradingPairType, TradingPairEngine] = {
+            pair: TradingPairEngine(trading_pair_type=pair, users=self.users)
             for pair in TradingPairType
         }
 
@@ -93,11 +93,11 @@ class Exchange:
     # 交易
     # ====================
 
-    def get_trading_pair(self, trading_pair: TradingPairType | str) -> TradingPairEngine:
+    def get_trading_pair(self, trading_pair: TradingPairType) -> TradingPairEngine:
         """获取指定交易对的交易引擎。
 
         Args:
-            trading_pair: 交易对类型或交易对字符串。
+            trading_pair: 交易对类型枚举。
 
         Returns:
             TradingPairEngine: 对应的交易对引擎。
@@ -110,14 +110,7 @@ class Exchange:
             >>> trading_pair = exchange.get_trading_pair(TradingPairType.BTC_USDT)
             >>> order = trading_pair.place_order(user, OrderType.BUY, base_amount=1.0, price=50000.0)
         """
-        if isinstance(trading_pair, str):
-            # 处理字符串输入
-            try:
-                trading_pair = TradingPairType(trading_pair)
-            except ValueError as e:
-                raise ValueError(f'不支持的交易对: {trading_pair}') from e
+        if trading_pair not in self.trading_pair_engines:
+            raise ValueError(f'不支持的交易对: {trading_pair}')
 
-        if trading_pair.value not in self.trading_pair_engines:
-            raise ValueError(f'不支持的交易对: {trading_pair.value}')
-
-        return self.trading_pair_engines[trading_pair.value]
+        return self.trading_pair_engines[trading_pair]

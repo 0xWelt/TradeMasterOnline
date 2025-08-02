@@ -8,6 +8,11 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+# 精度控制常量
+EPSILON: float = 1e-10
+"""浮点数比较精度阈值，用于处理浮点数精度问题。 <= EPSILON 可认为是 0"""
+
+
 class AssetType(StrEnum):
     """资产类型枚举"""
 

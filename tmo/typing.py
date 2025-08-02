@@ -11,7 +11,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator, model_validator
 
-from .constants import AssetType, OrderStatus, OrderType, TradingPairType
+from .constants import EPSILON, AssetType, OrderStatus, OrderType, TradingPairType
 
 
 class Asset(BaseModel):
@@ -69,9 +69,6 @@ class Order(BaseModel):
 
     filled_quote_amount: float = Field(default=0, ge=0)
     """已成交计价资产金额，用于计算实际平均成交价格。"""
-
-    average_execution_price: float = Field(default=0, ge=0)
-    """实际平均成交价格，根据实际成交情况计算。"""
 
     status: OrderStatus = Field(default=OrderStatus.PENDING)
     """订单状态，包括待成交、部分成交、已成交、已取消。"""
@@ -165,6 +162,7 @@ class Order(BaseModel):
         """验证订单参数完整性。
 
         整合所有订单验证逻辑，确保参数一致性。
+        对于限价订单，如果只提供了quote_amount，根据当前价格自动计算base_amount。
 
         Returns:
             Order: 验证后的订单对象。
@@ -178,6 +176,15 @@ class Order(BaseModel):
 
         if self.base_amount is None and self.quote_amount is None:
             raise ValueError('订单必须指定基础资产数量或计价资产金额')
+
+        # 对于限价订单，如果只提供了quote_amount，根据当前价格自动计算base_amount
+        if (
+            self.order_type in [OrderType.BUY, OrderType.SELL]
+            and self.base_amount is None
+            and self.quote_amount is not None
+        ):
+            # 根据当前价格计算基础资产数量
+            self.base_amount = self.quote_amount / self.price
 
         return self
 
@@ -211,9 +218,9 @@ class Order(BaseModel):
             bool: 当已成交数量达到订单设定目标时返回True。
         """
         if self.base_amount is not None:
-            return self.filled_base_amount >= self.base_amount
+            return self.filled_base_amount >= self.base_amount - EPSILON
         if self.quote_amount is not None:
-            return self.filled_quote_amount >= self.quote_amount
+            return self.filled_quote_amount >= self.quote_amount - EPSILON
         return False
 
     @property
@@ -224,10 +231,21 @@ class Order(BaseModel):
             bool: 当已成交数量大于0但小于订单设定目标时返回True。
         """
         if self.base_amount is not None:
-            return 0 < self.filled_base_amount < self.base_amount
+            return EPSILON < self.filled_base_amount < self.base_amount - EPSILON
         if self.quote_amount is not None:
-            return 0 < self.filled_quote_amount < self.quote_amount
+            return EPSILON < self.filled_quote_amount < self.quote_amount - EPSILON
         return False
+
+    @property
+    def average_execution_price(self) -> float:
+        """实际平均成交价格，根据实际成交情况自动计算。
+
+        Returns:
+            float: 实际平均成交价格，如果没有成交则返回0。
+        """
+        if self.filled_base_amount <= EPSILON:
+            return 0.0
+        return self.filled_quote_amount / self.filled_base_amount
 
 
 class TradeSettlement(BaseModel):

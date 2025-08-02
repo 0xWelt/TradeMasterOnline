@@ -1,7 +1,7 @@
 """模拟交易序列生成器。
 
-该模块提供了完整的交易模拟功能，包括用户创建、随机订单生成、
-智能撤单逻辑和价格历史记录。支持多交易对、多用户的复杂交易场景模拟。
+提供完整的交易模拟环境，支持多用户、多交易对的复杂交易场景模拟。
+实现智能的订单生成、撤销策略和实时价格记录，可用于交易策略验证和系统测试。
 
 主要功能：
     - 创建测试用户并分配初始资金
@@ -11,9 +11,12 @@
     - 交易结果汇总分析
 
 示例：
-    simulator = TradingSimulator(user_count=5, trading_rounds=1000)
-    simulator.run_simulation()
-    simulator.create_visualization('output.html')
+    >>> simulator = TradingSimulator(user_count=5, trading_rounds=1000)
+    >>> simulator.run_simulation()
+    >>> simulator.create_visualization('output.html')
+
+该模拟器采用交易对优先的轮询策略，确保每个用户在每个交易对都有订单可撤销，
+避免"无订单可撤销"的情况发生。
 """
 
 import random
@@ -21,6 +24,7 @@ import random
 import plotly.graph_objects as go
 
 from tmo import AssetType, Exchange, OrderStatus, OrderType, TradingPairType, User
+from tmo.trading_pair import TradingPairEngine
 
 
 class TradingSimulator:
@@ -96,6 +100,9 @@ class TradingSimulator:
 
         充值策略：
             - 每种资产的充值数量 = 1 BTC的价值 / 该资产的初始价值
+
+        Raises:
+            ValueError: 如果没有用户存在，则跳过充值操作。
         """
         if not self.users:
             return
@@ -172,11 +179,11 @@ class TradingSimulator:
         遍历用户的活跃订单字典结构，收集指定交易对的所有待成交和部分成交订单。
 
         Args:
-            user: 用户对象
-            trading_pair: 交易对
+            user: 用户对象，包含用户的订单信息。
+            trading_pair: 交易对，指定要查询的交易市场。
 
         Returns:
-            list: 用户在该交易对的活跃订单列表
+            list: 用户在该交易对的活跃订单列表，只包含状态为待成交或部分成交的订单。
 
         Example:
             >>> orders = self._get_user_orders_in_pair(user, TradingPairType.BTC_USDT)
@@ -197,136 +204,249 @@ class TradingSimulator:
     def _place_random_order_in_pair(self, user: User, trading_pair: TradingPairType) -> None:
         """在指定交易对随机下单。
 
+        根据用户资产情况智能选择订单类型和价格，避免USDT过度锁定。
+        使用统一的订单放置方法减少代码重复。
+
         Args:
             user: 用户对象
             trading_pair: 交易对
         """
-        # 根据用户资产情况智能选择订单类型，避免USDT过度锁定
+        order_type = self._determine_order_type(user, trading_pair)
+        if not order_type:
+            return
+
+        current_price = self.get_current_price(trading_pair)
+        is_market = random.random() < 0.3  # 30%概率使用市价单
+
+        # 强制终止程序的错误检查
+        if not is_market and order_type in [OrderType.BUY, OrderType.SELL]:
+            assert current_price is not None, '限价订单必须有价格'
+
+        self._place_order(user, trading_pair, order_type, current_price, is_market)
+
+    def _determine_order_type(self, user: User, trading_pair: TradingPairType) -> OrderType | None:
+        """根据用户资产情况确定订单类型。
+
+        Args:
+            user: 用户对象
+            trading_pair: 交易对
+
+        Returns:
+            OrderType | None: 确定的订单类型，如果无法下单则返回None
+        """
         usdt_balance = user.get_available_balance(AssetType.USDT)
         base_asset = trading_pair.base_asset
         base_balance = user.get_available_balance(base_asset)
 
-        # 计算买卖倾向，根据资产比例调整
-        total_usdt_value = usdt_balance + base_balance * self.get_current_price(trading_pair)
+        # 检查是否有足够的资产进行任何操作
+        if usdt_balance <= 0 and base_balance <= 0:
+            return None
 
-        # 如果USDT占比过高，增加卖单概率
-        if usdt_balance > total_usdt_value * 0.8 and base_balance > 0:
-            order_type = OrderType.SELL if random.random() < 0.9 else OrderType.BUY
-        # 如果基础资产占比过高，增加买单概率
-        elif base_balance > total_usdt_value * 0.8 and usdt_balance > 0:
-            order_type = OrderType.BUY if random.random() < 0.9 else OrderType.SELL
+        # 计算资产总值
+        total_value = usdt_balance + base_balance * self.get_current_price(trading_pair)
+
+        # 根据资产比例智能选择买卖方向
+        if usdt_balance > total_value * 0.8 and base_balance > 0:
+            # USDT过多，应该买入资产
+            return OrderType.BUY if random.random() < 0.9 else OrderType.SELL
+        elif base_balance > total_value * 0.8 and usdt_balance > 0:
+            # 基础资产过多，应该卖出
+            return OrderType.SELL if random.random() < 0.9 else OrderType.BUY
         else:
-            # 平衡状态，随机选择
-            order_type = OrderType.BUY if random.random() < 0.5 else OrderType.SELL
+            return OrderType.BUY if random.random() < 0.5 else OrderType.SELL
 
-        try:
-            current_price = self.get_current_price(trading_pair)
-            base_asset = trading_pair.base_asset
-
-            # 根据资产可用性和订单类型决定使用市价还是限价订单
-            use_market = random.random() < 0.3  # 30%概率使用市价单
-
-            if use_market:
-                if order_type == OrderType.BUY:
-                    # 市价买单需要USDT
-                    if user.get_available_balance(AssetType.USDT) > 0:
-                        self._place_market_order(
-                            user, trading_pair, OrderType.MARKET_BUY, base_asset
-                        )
-                else:  # SELL
-                    # 市价卖单需要基础资产
-                    if user.get_available_balance(base_asset) > 0:
-                        self._place_market_order(
-                            user, trading_pair, OrderType.MARKET_SELL, base_asset
-                        )
-            else:
-                if order_type == OrderType.BUY:
-                    # 限价买单需要USDT
-                    if user.get_available_balance(AssetType.USDT) > 0:
-                        self._place_limit_order(
-                            user, trading_pair, OrderType.BUY, base_asset, current_price
-                        )
-                else:  # SELL
-                    # 限价卖单需要基础资产
-                    if user.get_available_balance(base_asset) > 0:
-                        self._place_limit_order(
-                            user, trading_pair, OrderType.SELL, base_asset, current_price
-                        )
-
-        except ValueError as e:
-            print(f'轮次{self.round_counter}: 下单失败 - {e}')
-
-    def _place_market_order(
+    def _place_order(
         self,
         user: User,
         trading_pair: TradingPairType,
         order_type: OrderType,
-        base_asset: AssetType,
+        current_price: float,
+        is_market: bool,
     ) -> None:
-        if order_type == OrderType.MARKET_BUY:
-            max_usdt = user.get_available_balance(AssetType.USDT)
-            if max_usdt <= 0:
-                return
-            amount = random.uniform(10.0, max_usdt)
-            if amount <= 0:
-                return
-            self.exchange.get_trading_pair(trading_pair).place_order(
-                user=user, order_type=order_type, quote_amount=amount
-            )
-            print(
-                f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.2f} USDT {trading_pair.value}'
-            )
-        else:
-            max_quantity = user.get_available_balance(base_asset)
-            if max_quantity <= 0:
-                return
-            quantity = random.uniform(0.001, max_quantity)
-            if quantity <= 0:
-                return
-            self.exchange.get_trading_pair(trading_pair).place_order(
-                user=user, order_type=order_type, base_amount=quantity
-            )
-            print(
-                f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {quantity:.6f} {base_asset.value} {trading_pair.value}'
-            )
+        """统一的订单放置方法。
 
-    def _place_limit_order(
+        Args:
+            user: 用户对象
+            trading_pair: 交易对
+            order_type: 订单类型
+            current_price: 当前价格
+            is_market: 是否使用市价单
+        """
+        engine = self.exchange.get_trading_pair(trading_pair)
+        base_asset = trading_pair.base_asset
+
+        if is_market:
+            # 市价订单不传递价格
+            self._place_market_order_internal(user, engine, order_type, base_asset)
+        else:
+            # 限价订单传递价格
+            self._place_limit_order_internal(user, engine, order_type, base_asset, current_price)
+
+    def _place_market_order_internal(
         self,
         user: User,
-        trading_pair: TradingPairType,
+        engine: TradingPairEngine,
+        order_type: OrderType,
+        base_asset: AssetType,
+    ) -> None:
+        """内部市价订单放置方法。
+
+        Args:
+            user: 用户对象
+            engine: 交易对引擎
+            order_type: 订单类型
+            base_asset: 基础资产类型
+        """
+        asset_type = AssetType.USDT if order_type == OrderType.MARKET_BUY else base_asset
+        max_amount = user.get_available_balance(asset_type)
+
+        if max_amount <= 0.01:  # 最小余额要求
+            return
+
+        amount = self._calculate_order_amount(max_amount, order_type)
+        if amount <= 0:
+            return
+
+        # 最终余额检查
+        if amount > user.get_available_balance(asset_type):
+            return
+
+        self._execute_market_order(engine, user, order_type, amount, base_asset)
+
+    def _place_limit_order_internal(
+        self,
+        user: User,
+        engine: TradingPairEngine,
         order_type: OrderType,
         base_asset: AssetType,
         current_price: float,
     ) -> None:
-        target_price = current_price * (1 + random.uniform(-0.005, 0.005))
+        """内部限价订单放置方法。
+
+        Args:
+            user: 用户对象
+            engine: 交易对引擎
+            order_type: 订单类型
+            base_asset: 基础资产类型
+            current_price: 当前价格
+        """
+        # 引入双向非对称偏移，增加价格波动性
+        if order_type == OrderType.BUY:
+            # 买单偏向向上报价，支撑价格
+            target_price = current_price * (1 + random.uniform(-0.001, 0.008))
+        else:  # SELL
+            # 卖单偏向向下报价，但幅度较小
+            target_price = current_price * (1 + random.uniform(-0.008, 0.001))
 
         if order_type == OrderType.BUY:
             max_usdt = user.get_available_balance(AssetType.USDT)
-            if max_usdt <= 0:
+            if max_usdt <= 0.01:  # 最小余额要求
                 return
             max_quantity = max_usdt / target_price
-            quantity = random.uniform(0.001, max_quantity)
-            if quantity <= 0:
-                return
-            self.exchange.get_trading_pair(trading_pair).place_order(
-                user=user, order_type=order_type, base_amount=quantity, price=target_price
-            )
-            print(
-                f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{target_price:.2f} {trading_pair.value}'
-            )
-        else:
+            # 确保不会超出可用余额
+            required_usdt = max_quantity * target_price
+            if required_usdt > max_usdt:
+                max_quantity = max_usdt / target_price * 0.95  # 留5%缓冲
+        else:  # SELL
             max_quantity = user.get_available_balance(base_asset)
-            if max_quantity <= 0:
+            if max_quantity <= 0.0001:  # 最小余额要求
                 return
-            quantity = random.uniform(0.001, max_quantity)
-            if quantity <= 0:
+
+        quantity = self._calculate_order_amount(max_quantity, order_type)
+        if quantity <= 0:
+            return
+
+        # 最终余额检查
+        if order_type == OrderType.BUY:
+            required_usdt = quantity * target_price
+            if required_usdt > user.get_available_balance(AssetType.USDT):
                 return
-            self.exchange.get_trading_pair(trading_pair).place_order(
-                user=user, order_type=order_type, base_amount=quantity, price=target_price
-            )
-            print(
-                f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{target_price:.2f} {trading_pair.value}'
-            )
+        else:  # SELL
+            if quantity > user.get_available_balance(base_asset):
+                return
+
+        self._execute_limit_order(engine, user, order_type, quantity, target_price, base_asset)
+
+    def _calculate_order_amount(self, max_amount: float, order_type: OrderType) -> float:
+        """计算订单数量。
+
+        确保订单数量不超过可用余额，并设置合理的上下限。
+
+        Args:
+            max_amount: 最大可用数量
+            order_type: 订单类型
+
+        Returns:
+            float: 计算的订单数量，不超过最大可用数量的80%
+        """
+        if max_amount <= 0:
+            return 0.0
+
+        # 使用80%的可用余额，避免全部用完
+        max_safe_amount = max_amount * 0.8
+
+        if order_type in [OrderType.MARKET_BUY, OrderType.BUY]:
+            if order_type == OrderType.MARKET_BUY:
+                # 市价买单：最小10 USDT，最大安全金额
+                min_amount = min(10.0, max_safe_amount * 0.1)
+                return max(min_amount, random.uniform(min_amount, max_safe_amount))
+            else:
+                # 限价买单：最小0.001，最大安全金额
+                min_amount = min(0.001, max_safe_amount * 0.1)
+                return max(min_amount, random.uniform(min_amount, max_safe_amount))
+        else:
+            # 卖单：最小0.001，最大安全金额
+            min_amount = min(0.001, max_safe_amount * 0.1)
+            return max(min_amount, random.uniform(min_amount, max_safe_amount))
+
+    def _execute_market_order(
+        self,
+        engine: TradingPairEngine,
+        user: User,
+        order_type: OrderType,
+        amount: float,
+        base_asset: AssetType,
+    ) -> None:
+        """执行市价订单。
+
+        Args:
+            engine: 交易对引擎
+            user: 用户对象
+            order_type: 订单类型
+            amount: 订单金额
+            base_asset: 基础资产类型
+        """
+        if order_type == OrderType.MARKET_BUY:
+            engine.place_order(user=user, order_type=OrderType.MARKET_BUY, quote_amount=amount)
+            print_str = f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.2f} USDT {engine.symbol}'
+        else:
+            engine.place_order(user=user, order_type=OrderType.MARKET_SELL, base_amount=amount)
+            print_str = f'轮次{self.round_counter}: {user.username} 市价{order_type.value} {amount:.6f} {base_asset.value} {engine.symbol}'
+        print(print_str)
+
+    def _execute_limit_order(
+        self,
+        engine: TradingPairEngine,
+        user: User,
+        order_type: OrderType,
+        quantity: float,
+        price: float,
+        base_asset: AssetType,
+    ) -> None:
+        """执行限价订单。
+
+        Args:
+            engine: 交易对引擎
+            user: 用户对象
+            order_type: 订单类型
+            quantity: 订单数量
+            price: 订单价格
+            base_asset: 基础资产类型
+        """
+        engine.place_order(user=user, order_type=order_type, base_amount=quantity, price=price)
+        print(
+            f'轮次{self.round_counter}: {user.username} 限价{order_type.value} {quantity:.6f} {base_asset.value}@{price:.2f} {engine.symbol}'
+        )
 
     def _cancel_random_order_in_pair(self, user: User, trading_pair: TradingPairType) -> None:
         """在指定交易对撤销订单。
@@ -335,8 +455,8 @@ class TradingSimulator:
         直接从用户的活跃订单列表中获取订单进行撤销。
 
         Args:
-            user: 用户对象
-            trading_pair: 交易对
+            user: 用户对象，包含用户的订单信息。
+            trading_pair: 交易对，指定要撤销订单的交易市场。
         """
         engine = self.exchange.get_trading_pair(trading_pair)
 
@@ -346,16 +466,34 @@ class TradingSimulator:
         if user_orders:
             # 随机选择一个订单撤销
             order = random.choice(user_orders)
-            try:
-                engine.cancel_order(order, user)
-                order_type_name = '市价' if 'market' in order.order_type.value else '限价'
-                print(
-                    f'轮次{self.round_counter}: {user.username} 在 {trading_pair.value} 撤销{order_type_name}订单成功'
-                )
-            except ValueError as e:
-                print(f'轮次{self.round_counter}: 撤销订单失败 - {e}')
+        engine.cancel_order(order, user)
+        order_type_name = '市价' if 'market' in order.order_type.value else '限价'
+        print(
+            f'轮次{self.round_counter}: {user.username} 在 {trading_pair.value} 撤销{order_type_name}订单成功'
+        )
 
     def run_simulation(self) -> None:
+        """运行完整的交易模拟。
+
+        执行完整的交易模拟流程，包括用户创建、资金充值和多轮交易模拟。
+        每轮交易都会输出当前轮次信息，便于跟踪模拟进度。
+
+        流程：
+            1. 创建测试用户
+            2. 为用户充值初始资金
+            3. 执行指定轮次的交易模拟
+            4. 输出模拟完成信息
+
+        Example:
+            >>> simulator = TradingSimulator(user_count=3, trading_rounds=100)
+            >>> simulator.run_simulation()
+            === 开始模拟交易序列 ===
+            用户数量: 3 个
+            交易轮次: 100 轮
+            交易对: [TradingPairType.BTC_USDT, TradingPairType.ETH_USDT]
+            ...
+            === 模拟完成，共100轮交易 ===
+        """
         print('=== 开始模拟交易序列 ===')
         print(f'用户数量: {self.user_count} 个')
         print(f'交易轮次: {self.trading_rounds} 轮')
@@ -371,6 +509,21 @@ class TradingSimulator:
         print(f'\n=== 模拟完成，共{self.round_counter}轮交易 ===')
 
     def create_visualization(self, output_file: str = 'trading_simulation.html') -> None:
+        """创建交易模拟可视化图表。
+
+        生成包含所有交易对价格走势的交互式HTML图表，支持多交易对切换查看。
+        图表使用Plotly库生成，包含完整的交互功能和响应式设计。
+
+        Args:
+            output_file: 输出文件名，默认为'trading_simulation.html'。
+
+        Returns:
+            None: 将生成的图表保存到指定文件。
+
+        Example:
+            >>> simulator.create_visualization('my_trading_chart.html')
+            价格图表已保存到: my_trading_chart.html
+        """
         colors = {
             pair: ['#3498db', '#2ecc71', '#e74c3c'][i % 3]
             for i, pair in enumerate(self.trading_pairs)
@@ -458,6 +611,37 @@ class TradingSimulator:
 </html>"""
 
     def print_summary(self) -> None:
+        """打印模拟总结报告。
+
+        输出详细的交易模拟结果，包括：
+        1. 每个交易对的当前订单簿状态（前5个买卖单）
+        2. 每个用户的资产情况（可用、锁定、总计）
+        3. 每个用户的活跃订单详情
+
+        报告格式清晰，便于分析模拟结果和用户行为。
+
+        Example:
+            === 模拟总结 ===
+
+            === 交易对挂单情况 ===
+
+            BTC/USDT:
+              买单:
+                价格: 50000.00, 数量: 0.500000
+                ...
+              卖单:
+                价格: 51000.00, 数量: 0.800000
+                ...
+              当前价格: 50500.00
+
+            === 用户资产情况 ===
+
+            用户: Alice
+              BTC: 可用 1.0000, 锁定 0.5000, 总计 1.5000
+              USDT: 可用 5000.0000, 锁定 25000.0000, 总计 30000.0000
+              活跃订单详情:
+                BTC_USDT BUY: 2个订单
+        """
         print('\n=== 模拟总结 ===')
 
         # 打印每个交易对的当前挂单
@@ -516,7 +700,7 @@ class TradingSimulator:
 def main():
     simulator = TradingSimulator(
         user_count=5,
-        trading_rounds=1000,
+        trading_rounds=5000,
         trading_pairs=[TradingPairType.BTC_USDT, TradingPairType.ETH_USDT],
     )
 
