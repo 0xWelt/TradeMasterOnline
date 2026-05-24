@@ -16,7 +16,15 @@ from tmo.env.trading_env import TradingEnv
 
 
 def run_episode(env: TradingEnv, seed: int = 42) -> dict:
-    """用随机动作跑一个 episode，返回历史数据。"""
+    """用随机动作跑一个 episode，返回历史数据。
+
+    Args:
+        env: 交易环境实例。
+        seed: 随机种子，默认 42。
+
+    Returns:
+        包含 prices、equity、agents、pairs、trade_count 的字典。
+    """
     rng = np.random.default_rng(seed)
     env.reset(seed=seed)
 
@@ -65,7 +73,12 @@ def run_episode(env: TradingEnv, seed: int = 42) -> dict:
 
 
 def plot_results(history: dict, output_path: str) -> None:
-    """绘制每个交易对的价格曲线和仓位价值曲线。"""
+    """绘制每个交易对的价格曲线和仓位价值曲线。
+
+    Args:
+        history: run_episode 返回的历史数据字典。
+        output_path: 输出图片文件路径。
+    """
     prices = history['prices']
     equity = history['equity']
     agents = history['agents']
@@ -105,6 +118,7 @@ def plot_results(history: dict, output_path: str) -> None:
 
 
 def main() -> None:
+    """命令行入口：解析参数、运行 episode、打印统计、保存图表。"""
     parser = argparse.ArgumentParser(description='Random agents trading demo')
     parser.add_argument(
         '--config',

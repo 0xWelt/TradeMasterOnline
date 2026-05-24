@@ -7,7 +7,10 @@ from tmo.core.order_book import OrderBook, PriceLevel
 
 
 class TestPriceLevel:
+    """PriceLevel 测试。"""
+
     def test_append_and_total_qty(self) -> None:
+        """测试追加订单后 total_qty 正确累加。"""
         level = PriceLevel(price=100.0)
         level.append(
             Order(
@@ -22,6 +25,7 @@ class TestPriceLevel:
         assert level.total_qty == 3.0
 
     def test_remove_existing(self) -> None:
+        """测试移除已存在的订单。"""
         level = PriceLevel(price=100.0)
         order = Order(
             order_id='o1', agent_id='a1', pair_id='P', side=Side.BUY, price=100.0, quantity=1.0
@@ -34,10 +38,12 @@ class TestPriceLevel:
         assert not level
 
     def test_remove_missing(self) -> None:
+        """测试移除不存在的订单返回 None。"""
         level = PriceLevel(price=100.0)
         assert level.remove('o1') is None
 
     def test_popleft(self) -> None:
+        """测试从队列头部取出订单。"""
         level = PriceLevel(price=100.0)
         order = Order(
             order_id='o1', agent_id='a1', pair_id='P', side=Side.BUY, price=100.0, quantity=1.0
@@ -49,7 +55,10 @@ class TestPriceLevel:
 
 
 class TestOrderBook:
+    """OrderBook 测试。"""
+
     def test_place_buy_order_resting(self) -> None:
+        """测试 BUY 订单挂单后成为 resting order。"""
         book = OrderBook('P')
         order = Order(
             order_id='o1', agent_id='a1', pair_id='P', side=Side.BUY, price=100.0, quantity=1.0
@@ -60,6 +69,7 @@ class TestOrderBook:
         assert 100.0 in book.bids
 
     def test_place_sell_order_resting(self) -> None:
+        """测试 SELL 订单挂单后成为 resting order。"""
         book = OrderBook('P')
         order = Order(
             order_id='o1', agent_id='a1', pair_id='P', side=Side.SELL, price=101.0, quantity=1.0
@@ -69,6 +79,7 @@ class TestOrderBook:
         assert 101.0 in book.asks
 
     def test_match_buy_against_ask(self) -> None:
+        """测试 BUY 订单与 ask 撮合成交。"""
         book = OrderBook('P')
         sell = Order(
             order_id='o1', agent_id='a1', pair_id='P', side=Side.SELL, price=100.0, quantity=1.0
@@ -85,6 +96,7 @@ class TestOrderBook:
         assert 'o2' not in book.orders
 
     def test_cancel_order(self) -> None:
+        """测试取消订单。"""
         book = OrderBook('P')
         order = Order(
             order_id='o1', agent_id='a1', pair_id='P', side=Side.BUY, price=100.0, quantity=1.0
@@ -96,10 +108,12 @@ class TestOrderBook:
         assert 100.0 not in book.bids
 
     def test_cancel_missing(self) -> None:
+        """测试取消不存在的订单返回 None。"""
         book = OrderBook('P')
         assert book.cancel_order('o1') is None
 
     def test_get_snapshot(self) -> None:
+        """测试订单簿快照功能。"""
         book = OrderBook('P')
         book.place_order(
             Order(

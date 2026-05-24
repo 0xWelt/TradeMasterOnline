@@ -27,6 +27,8 @@ exchange:
   fees:
     maker_fee: 0.001
     taker_fee: 0.002
+    base_precision: 8
+    quote_precision: 8
 
 agents:
   n_agents: 4

@@ -42,19 +42,24 @@ SAMPLE_CONFIG = {
 
 
 class TestConfigSchema:
+    """ConfigSchema 配置模型测试。"""
+
     def test_from_dict(self) -> None:
+        """测试从字典解析配置。"""
         cfg = ConfigSchema.model_validate(SAMPLE_CONFIG)
         assert cfg.exchange.pairs[0].id == 'BTC/USDT'
         assert cfg.agents.n_agents == 2
         assert cfg.env.max_steps == 100
 
     def test_from_yaml_file(self, tmp_path: Path) -> None:
+        """测试从 YAML 文件加载配置。"""
         path = tmp_path / 'config.yaml'
         path.write_text(yaml.safe_dump(SAMPLE_CONFIG), encoding='utf-8')
         cfg = ConfigSchema.from_yaml(str(path))
         assert cfg.exchange.assets[0].symbol == 'BTC'
 
     def test_invalid_pair_asset(self) -> None:
+        """测试交易对引用了不存在的资产时抛出异常。"""
         bad = {
             'exchange': {
                 'assets': [{'symbol': 'BTC'}],
@@ -84,6 +89,7 @@ class TestConfigSchema:
             ConfigSchema.model_validate(bad)
 
     def test_negative_fee_rejected(self) -> None:
+        """测试负手续费被校验拒绝。"""
         bad = {
             'exchange': {
                 'assets': [{'symbol': 'BTC'}, {'symbol': 'USDT'}],
@@ -113,6 +119,7 @@ class TestConfigSchema:
             ConfigSchema.model_validate(bad)
 
     def test_differentiated_holdings(self) -> None:
+        """测试支持差异化的 per-agent 初始持仓。"""
         cfg = ConfigSchema.model_validate(
             {
                 'exchange': {
@@ -149,6 +156,7 @@ class TestConfigSchema:
         assert holdings[1]['BTC'] == 0.5
 
     def test_differentiated_holdings_length_mismatch(self) -> None:
+        """测试 per-agent 持仓列表长度与 n_agents 不匹配时抛出异常。"""
         bad = {
             'exchange': {
                 'assets': [{'symbol': 'BTC'}, {'symbol': 'USDT'}],

@@ -52,7 +52,14 @@ SAMPLE_CONFIG = {
 
 
 def _total_assets(env: TradingEnv) -> dict[str, float]:
-    """统计所有资产（agent + 交易所）的分项总量。"""
+    """统计所有资产（agent + 交易所）的分项总量。
+
+    Args:
+        env: 交易环境实例。
+
+    Returns:
+        各资产的总量字典。
+    """
     total: dict[str, float] = dict.fromkeys(env._asset_symbols, 0.0)
     for agent in env.possible_agents:
         for sym, qty in env.holdings[agent].items():
@@ -63,7 +70,11 @@ def _total_assets(env: TradingEnv) -> dict[str, float]:
 
 
 def test_asset_conservation_random_episode() -> None:
-    """跑完一个随机 episode，断言各资产总量守恒。"""
+    """跑完一个随机 episode，断言各资产总量守恒。
+
+    使用随机动作生成交易，验证所有资产（agent 持仓 + 交易所手续费）
+    的总量在 episode 前后保持不变。
+    """
     from tmo.config.schema import ConfigSchema
 
     config = ConfigSchema.model_validate(SAMPLE_CONFIG)
