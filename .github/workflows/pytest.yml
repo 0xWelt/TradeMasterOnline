@@ -1,39 +1,31 @@
-name: Pytest CI
+# Pytest — 运行全部单元测试并生成覆盖率报告
+name: Pytest
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main, develop ]
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Install uv
-      uses: astral-sh/setup-uv@v6
-      with:
-        enable-cache: true
-        python-version: '3.12'
-
-    - name: Install dependencies
-      run: |
-        uv sync --extra dev
-
-    - name: Run pytest
-      run: |
-        uv run pytest -n 8 -vvv --cov=tmo --cov-report=xml --cov-report=term-missing --junitxml=junit.xml -o junit_family=legacy --timeout=60
-
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        slug: 0xWelt/TradeMasterOnline
-
-    - name: Upload test results to Codecov
-      if: ${{ !cancelled() }}
-      uses: codecov/test-results-action@v1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+      - name: Run tests with coverage
+        run: uv run pytest -n auto --cov=tmo --cov-report=xml --cov-report=term-missing --junitxml=junit.xml
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: 0xWelt/TradeMasterOnline
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

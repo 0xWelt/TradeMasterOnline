@@ -2,20 +2,17 @@
 
 [project]
 name = "trademaster-online"
-version = "0.1.0"
-description = "A multi-agent trading simulation game built almost entirely with vibe coding with K2"
+dynamic = ["version"]
+description = "A multi-agent trading simulation game"
 authors = [
     {name = "0xWelt", email = "dinghao12601@126.com"}
 ]
 readme = "README.md"
 license = {text = "Apache-2.0"}
-requires-python = ">=3.12"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "pydantic>=2.0.0",
     "loguru>=0.7.0",
-    "matplotlib>=3.7.0",
-    "plotly>=5.15.0",
-    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +29,9 @@ dev = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "tmo/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["tmo"]
 
@@ -44,10 +44,10 @@ typing-files = ["tmo/typing.py"]
 ignore-words = "docs/spelling_wordlist.txt"
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 100
 output-format = "full"
-src = ["tmo", "examples"]
+src = ["tmo", "examples", "tests"]
 
 [tool.ruff.format]
 quote-style = "single"
@@ -57,57 +57,85 @@ skip-magic-trailing-comma = false
 [tool.ruff.lint]
 allowed-confusables = ["，", "。", "：", "？", "！", "、", "（", "）", "；", "“", "”"]
 select = [
-    "E", "W",  # pycodestyle
-    "F",       # pyflakes
-    "I",       # isort
-    "N",       # pep8-naming
-    "UP",      # pyupgrade
+    "FAST",    # FastAPI
+    "YTT",     # flake8-2020
     "ANN",     # flake8-annotations
+    "ASYNC",   # flake8-async
     "S",       # flake8-bandit
     "BLE",     # flake8-blind-except
     "B",       # flake8-bugbear
     "COM",     # flake8-commas
     "C4",      # flake8-comprehensions
+    "DTZ",     # flake8-datetimez
+    "T10",     # flake8-debugger
+    "EM",      # flake8-errmsg
     "EXE",     # flake8-executable
     "FA",      # flake8-future-annotations
     "ISC",     # flake8-implicit-str-concat
     "LOG",     # flake8-logging
+    "INP",     # flake8-no-pep420
     "PIE",     # flake8-pie
+    "T20",     # flake8-print
     "PYI",     # flake8-pyi
+    "PT",      # flake8-pytest-style
     "Q",       # flake8-quotes
     "RSE",     # flake8-raise
     "SIM",     # flake8-simplify
     "TID",     # flake8-tidy-imports
     "TC",      # flake8-type-checking
+    "ARG",     # flake8-unused-arguments
+    "I",       # isort
+    "C90",     # mccabe complexity
+    "NPY",     # NumPy-specific rules
+    "PD",      # pandas-vet
+    "N",       # pep8-naming
     "PERF",    # perflint
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "PGH",     # pygrep-hooks
+    "PL",      # Pylint
+    "UP",      # pyupgrade
     "FURB",    # refurb
-    "TRY",     # tryceratops
     "RUF",     # ruff
-    "ASYNC",   # flake8-async
+    "TRY",     # tryceratops
 ]
+preview = true
+explicit-preview-rules = true
 ignore = [
     "ANN002",  # missing-type-args
     "ANN003",  # missing-type-kwargs
     "ANN204",  # missing-return-type-special-method
     "ANN401",  # any-type
     "B027",    # empty-method-without-abstract-decorator
-    "B905",    # zip-without-explicit-strict, we use `zip-strict-fixer` instead
+    "BLE001",  # blind-except
+    "C401",    # unnecessary set comprehension
     "C416",    # unnecessary-comprehension
     "COM812",  # missing-trailing-comma
+    "EM101",   # raw-string-in-exception
+    "EM102",   # f-string-in-exception
     "E501",    # line-too-long
     "N802",    # invalid-function-name
+    "PLC0415", # import-outside-top-level
+    "PLR2004", # magic value used in comparison
+    "PT012",   # pytest-raises-with-multiple-statements
+    "PT028",   # pytest-parameter-with-default-argument
     "RUF005",  # collection-literal-concatenation
+    "RUF052",  # used-dummy-variable
     "S101",    # assert
     "S105",    # hardcoded-password-string
     "S106",    # hardcoded-password-func-arg
     "S107",    # hardcoded-password-default
+    "S108",    # hardcoded-temp-file
     "S301",    # suspicious-pickle-usage
     "S311",    # suspicious-non-cryptographic-random-usage
+    "S324",    # hashlib-insecure-hash-function
     "SIM105",  # suppressible-exception
     "SIM108",  # if-else-block-instead-of-if-exp
     "TID252",  # relative-imports
     "TRY003",  # raise-vanilla-args
+    "TRY301",  # raise-within-try
     "TRY400",  # error-instead-of-exception
+    "UP047",   # type parameters
     "W505",    # doc-line-too-long
 ]
 extend-safe-fixes = [
@@ -132,6 +160,20 @@ extend-safe-fixes = [
 "__init__.py" = [
     "F401",    # unused-import
 ]
+"tests/**" = [
+    "T201",    # print
+]
+"examples/**" = [
+    "T201",    # print
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 17
+
+[tool.ruff.lint.pylint]
+max-args = 15
+max-positional-args = 7
+max-statements = 60
 
 [tool.ruff.lint.isort]
 known-first-party = ["tmo"]
@@ -142,7 +184,6 @@ lines-after-imports = 2
 allow-star-arg-any = true
 suppress-dummy-args = true
 suppress-none-returning = true
-
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = ["pydantic.BaseModel"]
@@ -162,3 +203,23 @@ addopts = "--tb=short --strict-markers"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.src]
+exclude = [
+    ".venv/**",
+    "dist/**",
+    "build/**",
+    ".git/**",
+    ".pytest_cache/**",
+    ".ruff_cache/**",
+]
+
+[tool.ty.rules]
+# Treat unresolved-attribute as warning to reduce noise from platform-specific
+# modules (e.g. winreg on Linux) and third-party C extensions during beta.
+unresolved-attribute = "warn"
+# Ban invalid / unused type-ignore comments.
+unused-type-ignore-comment = "error"
