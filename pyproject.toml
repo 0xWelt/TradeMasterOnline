@@ -11,8 +11,13 @@ readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.14,<3.15"
 dependencies = [
-    "pydantic>=2.0.0",
+    "pydantic>=2.13.0",
     "loguru>=0.7.0",
+    "pettingzoo>=1.24.0",
+    "gymnasium>=1.0.0",
+    "matplotlib>=3.9.0",
+    "tqdm>=4.66.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -162,6 +167,7 @@ extend-safe-fixes = [
 ]
 "tests/**" = [
     "T201",    # print
+    "INP001",  # implicit-namespace-package (tests don't need __init__.py)
 ]
 "examples/**" = [
     "T201",    # print
@@ -199,7 +205,7 @@ ban-relative-imports = "all"
 
 [tool.pytest.ini_options]
 timeout = 30
-addopts = "--tb=short --strict-markers"
+addopts = "-n auto --import-mode=importlib --cov=tmo --cov-report=term-missing --cov-report=html:htmlcov --tb=short --strict-markers"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]

@@ -1,0 +1,49 @@
+exchange:
+  assets:
+    - symbol: "BTC"
+    - symbol: "ETH"
+    - symbol: "USDT"
+
+  pairs:
+    - id: "BTC/USDT"
+      base: "BTC"
+      quote: "USDT"
+      initial_price: 50000.0
+      tick_size: 1.0
+      step_size: 0.0001
+      min_notional: 10.0
+      n_levels: 5
+      default_stp_mode: "expire_maker"
+    - id: "ETH/USDT"
+      base: "ETH"
+      quote: "USDT"
+      initial_price: 3000.0
+      tick_size: 0.1
+      step_size: 0.001
+      min_notional: 10.0
+      n_levels: 5
+      default_stp_mode: "expire_maker"
+
+  fees:
+    maker_fee: 0.001
+    taker_fee: 0.002
+
+agents:
+  n_agents: 4
+  initial_holdings:
+    - BTC: 2.0
+      ETH: 5.0
+      USDT: 80000.0
+    - BTC: 1.0
+      ETH: 10.0
+      USDT: 100000.0
+    - BTC: 0.5
+      ETH: 15.0
+      USDT: 120000.0
+    - BTC: 0.0
+      ETH: 20.0
+      USDT: 150000.0
+  max_qty: 100
+
+env:
+  max_steps: 1000

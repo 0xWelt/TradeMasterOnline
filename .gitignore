@@ -142,11 +142,11 @@ celerybeat.pid
 .env
 .envrc
 .venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+/env/
+/venv/
+/ENV/
+/env.bak/
+/venv.bak/
 
 # Spyder project settings
 .spyderproject
@@ -207,6 +207,7 @@ cython_debug/
 
 # Generated files
 examples/*.html
+output/
 
 # Marimo
 marimo/_static/

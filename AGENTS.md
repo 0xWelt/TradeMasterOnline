@@ -9,12 +9,14 @@ uv sync --extra dev
 pre-commit install
 ```
 
-激活虚拟环境后可直接运行命令（无需 `uv run` 前缀）：
+**始终先激活虚拟环境再运行命令**，这样才能使用正确的 Python 和依赖：
 
 ```bash
 source .venv/bin/activate   # Linux/macOS
 # .venv\Scripts\activate    # Windows
 ```
+
+激活后可直接运行 `python`、`pytest`、`pre-commit` 等命令，无需 `uv run` 前缀。
 
 ## pytest
 
