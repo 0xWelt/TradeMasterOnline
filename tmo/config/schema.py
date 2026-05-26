@@ -20,28 +20,20 @@ class PairConfig(BaseModel):
 
     id: str
     """交易对唯一标识（如 BTC/USDT）。"""
-
     base: str
     """基础资产符号。"""
-
     quote: str
     """计价资产符号。"""
-
     initial_price: float = Field(gt=0)
     """初始价格，必须大于 0。"""
-
     tick_size: float = Field(gt=0)
     """价格步长（filter 校验用），必须大于 0。"""
-
     step_size: float = Field(gt=0)
     """数量步长（filter 校验用），必须大于 0。"""
-
     min_notional: float = Field(gt=0)
     """最小名义价值（filter 校验用），必须大于 0。"""
-
     n_levels: int = Field(gt=0)
     """订单簿观测档位数，必须大于 0。"""
-
     default_stp_mode: str = Field(
         default='expire_maker',
         pattern='^(expire_maker|expire_taker|expire_both|none)$',
@@ -54,13 +46,10 @@ class FeeConfig(BaseModel):
 
     maker_fee: float = Field(ge=0)
     """Maker 手续费率，必须大于等于 0。"""
-
     taker_fee: float = Field(ge=0)
     """Taker 手续费率，必须大于等于 0。"""
-
     base_precision: int = Field(default=8, ge=0)
     """Base 资产精度（截断位数），默认 8，必须大于等于 0。"""
-
     quote_precision: int = Field(default=8, ge=0)
     """Quote 资产精度（截断位数），默认 8，必须大于等于 0。"""
 
@@ -70,10 +59,8 @@ class ExchangeConfig(BaseModel):
 
     assets: list[AssetConfig]
     """资产列表。"""
-
     pairs: list[PairConfig]
     """交易对列表。"""
-
     fees: FeeConfig
     """手续费配置。"""
 
@@ -101,10 +88,8 @@ class AgentConfig(BaseModel):
 
     n_agents: int = Field(gt=0)
     """智能体数量，必须大于 0。"""
-
     initial_holdings: dict[str, float] | list[dict[str, float]]
     """初始持仓，支持统一 dict（所有 agent 相同）或 per-agent list[dict]。"""
-
     max_qty: float = Field(gt=0)
     """单次最大下单数量，必须大于 0。"""
 
@@ -131,7 +116,6 @@ class EnvConfig(BaseModel):
 
     max_steps: int = Field(gt=0)
     """每轮最大步数，必须大于 0。"""
-
     check_negative_equity: bool = False
     """是否检查负资产并触发终止，默认 False。"""
 
@@ -141,10 +125,8 @@ class ConfigSchema(BaseModel):
 
     exchange: ExchangeConfig
     """交易所配置。"""
-
     agents: AgentConfig
     """智能体配置。"""
-
     env: EnvConfig
     """环境配置。"""
 

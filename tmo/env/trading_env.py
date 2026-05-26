@@ -22,17 +22,6 @@ class TradingEnv(AECEnv):
 
     每个 step 处理一个 agent 的动作，支持限价委托、撮合、持仓更新和手续费结算。
     采用 Binance 风格的 received-asset 手续费模式，并支持可配置的 STP 策略。
-
-    Attributes:
-        metadata: 环境元数据。
-        config: 完整配置对象。
-        possible_agents: 所有可能的 agent 名称列表。
-        agents: 当前存活的 agent 列表。
-        books: 各交易对的订单簿。
-        prices: 各资产的最新成交价。
-        holdings: 各 agent 的持仓。
-        exchange_holdings: 交易所收取的手续费累计。
-        step_count: 当前步数。
     """
 
     def __init__(self, config: ConfigSchema) -> None:

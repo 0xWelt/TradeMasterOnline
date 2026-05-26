@@ -14,13 +14,7 @@ if TYPE_CHECKING:
 
 
 class PriceLevel:
-    """同一价格的订单队列（FIFO）。
-
-    Attributes:
-        price: 该价格档的价格。
-        orders: 订单双端队列，按时间顺序排列。
-        total_qty: 该价格档的总数量。
-    """
+    """同一价格的订单队列（FIFO）。"""
 
     def __init__(self, price: float) -> None:
         """初始化价格档。
@@ -92,9 +86,6 @@ class OrderBook:
 
     维护 bids（买单）和 asks（卖单）两个价格档字典，
     以及一个按 order_id 索引的活跃订单字典。
-
-    Attributes:
-        pair_id: 交易对标识。
     """
 
     def __init__(self, pair_id: PairId) -> None:
